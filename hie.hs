@@ -29,7 +29,6 @@ import           System.IO
 import           System.Directory
 import           Control.Monad
 
-
 -- Tags ------------------------------------------------------------------------
 
 data InstanceData = InstanceDecl
@@ -60,7 +59,6 @@ $(mkLabels [''Ident, ''Tag])
 
 -- Database --------------------------------------------------------------------
 
-
 -- | Here is our database of identifiers.
 type Database = Map.Map Ident Tag
 
@@ -81,8 +79,8 @@ haskellSource file = do
     where
     cppOpts = CPP.defaultCpphsOptions { CPP.boolopts = CPP.defaultBoolOptions { CPP.hashline = False } }
 
-createTags :: String -> Either (String, [String], Database, Database) String
-createTags s = 
+createTags :: FilePath -> String -> Either (String, [String], Database, Database) String
+createTags file s = 
   case L.parseFileContentsWithComments mode s of
     L.ParseOk (m, comments) -> Left $ case extractModule m of
                                     (name, (line, _), mods, dbExport, db) ->
@@ -95,8 +93,8 @@ createTags s =
     L.ParseFailed _ s -> Right s
   where
     mode = L.ParseMode {
-      L.parseFilename = "",
-      L.extensions = L.glasgowExts ++ [L.TemplateHaskell, L.QuasiQuotes] ,
+      L.parseFilename = file,
+      L.extensions = L.knownExtensions ,
       L.ignoreLanguagePragmas = False,
       L.ignoreLinePragmas = False,
       L.fixities = Nothing
@@ -139,6 +137,7 @@ killIndent s = let l = reverse $ dropWhile (== "") $ reverse $ dropWhile (== "")
                    in
                 unlines $ map (drop minLength) l
 
+                
 extractHaddock :: [((Int, Int), String)] -> [((Int, Int), String)] -> String
 extractHaddock acoms scoms = 
   case (acom, scom) of 
@@ -167,8 +166,6 @@ pretty = Pretty.prettyPrintStyleMode
                               Pretty.spacing = False}
 
 -- Extraction ------------------------------------------------------------------
-
-
 
 type Span = L.SrcSpanInfo
 
@@ -319,15 +316,21 @@ doctorClassDecl _ = Nothing
 -- Export ----------------------------------------------------------------------
 
 quote [] = []
-quote ('"' : xs) = "\\\"" ++ quote xs 
+quote ('"' : xs) = "\\\"" ++ quote xs
+quote ('\\' : xs) = "\\\\" ++ quote xs 
 quote (x : xs) = x : quote xs
+
 
 -- | Here's where the format is!
 exportELisp :: FilePath -> String -> [String] -> Database -> String
-exportELisp file mod mods db = printf "(setq hie-load (append '%s %s))" 
-                           export 
-                           (unlines . map (\x -> printf "(hie-load-module \"%s\" \"%s\")" x mod) $ mods) 
+exportELisp file mod mods db = printf "(setq hie-load (append '%s %s))" export mods' 
   where
+    
+    mods' = unlines $
+            map (\mod' -> printf "(hie-load-module \"%s\" \"%s\")" mod' mod) $
+            filter (/= mod) $ -- Stop self-recursive imports
+            mods             
+  
     export :: String
     export = printf "(%s)" . unlines . map exportTag $ Map.toList db 
     
@@ -335,15 +338,19 @@ exportELisp file mod mods db = printf "(setq hie-load (append '%s %s))"
     exportTag (Ident name mod instance_, Tag (line, column) _ sig qh) = 
       printf "(\"%s\" %s %s \"%s\" %i %i \"%s\" \"%s\")" 
       (case instance_ of
-          ClassMember s -> (printf "%s/%s" name s)
-          _ -> name)
-      (maybe "nil" (printf "\"%s\"") mod) 
+          ClassMember s -> quote (printf "%s/%s" name s)
+          _ -> quote name)
+      (maybe "nil" (printf "\"%s\"" . quote) mod) 
       (case instance_ of
+
+      
           NotInstance -> "nil"
           _ -> "t")
       file line column 
-      (fromMaybe "" sig) 
+      (quote $ fromMaybe "" sig) 
       (quote qh)
+
+
 
 -- Driver ----------------------------------------------------------------------
 
@@ -355,7 +362,7 @@ main = do
   case files of 
     [spec, filein, fileout] -> do
       contents <- haskellSource filein
-      case createTags contents of 
+      case createTags filein contents of 
         Left (mod, mods, dbExport, db) -> 
           do path <- canonicalizePath filein
              case spec of

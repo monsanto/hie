@@ -11,10 +11,13 @@
 ;;
 
 (require 'cl)
-
+(require 'haskell-mode)
 
 (defvar hie-modules-dir "~/.hie/"
   "Where should we look for caches?")
+
+(defvar hie-jump-to-definition-regexp ".*"
+  "A regexp matching the modules you want to show up in the jump-to-definition list.")
 
 (defvar hie-active-modules-regexp nil
   "A regexp matching modules we are currently editing.")
@@ -25,7 +28,14 @@
 ; Third, there is a hash table of identifiers pulled from the buffer itself.
 ;
 
-(define-minor-mode hie-mode "Toggle hie mode." nil " hie" nil
+(defvar hie-mode-map
+  (let ((map (make-keymap)))
+    (define-key map (kbd "C-c C-h") 'hie-show-signature)
+    (define-key map (kbd "C-c C-j") 'hie-jump-to-definition)
+    map)
+  "hie-mode keymap")
+
+(define-minor-mode hie-mode "Toggle hie mode." nil " hie" hie-mode-map
   (hie-setup-buffer))
 
 (defvar hie-global-hash nil
@@ -86,7 +96,12 @@ The union of hie-buffer-imports-hash and hie-buffer-defined-hash.")
 (defun hie-jump-to-definition (&optional name)
   "Jump to the given definition."
   (interactive)
-  (let* ((name (completing-read "Jump to definition: " (hie-the-hash) nil nil name))
+  (let* ((ident (haskell-ident-at-point))
+	 (name (completing-read "Jump to definition: "
+				(hie-the-hash)
+				(lambda (key info) (string-match hie-jump-to-definition-regexp (nth 0 info)))
+				nil
+				(or name (if (gethash ident (hie-the-hash)) ident nil))))
 	 (info (gethash name (hie-the-hash))))
     (find-file (nth 2 info))
     (goto-line (nth 3 info))))
@@ -94,11 +109,12 @@ The union of hie-buffer-imports-hash and hie-buffer-defined-hash.")
 (defun hie-show-signature (&optional name)
   "Show the signature in the mode line."
   (interactive)
-  (let* ((name (completing-read "Show signature: "
+  (let* ((ident (haskell-ident-at-point))
+	 (name (completing-read "Show signature: "
 				(hie-the-hash)
 				(lambda (key info) (not (nth 1 info)))
 				nil
-				name))
+				(or name (if (gethash ident (hie-the-hash)) ident nil))))
 	 (info (gethash name (hie-the-hash))))
     (display-message-or-buffer (hie-make-help info))))
 
