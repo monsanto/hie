@@ -46,11 +46,11 @@ data Tag = Tag {
   _tagPos :: (Int, Int),          -- ^Where is this object? (line, column)
   _tagParent :: Maybe Ident,       -- ^This is only for export definitions.
   _tagSignature :: Maybe String,  -- ^Tell me about this object.
-  _tagQuickHelp :: String   -- ^... in English, please...
+  _tagQuickHelp :: Maybe String   -- ^... in English, please...
   } deriving Show
              
 newIdent s = Ident s Nothing NotInstance 
-newTag loc = Tag loc Nothing Nothing ""
+newTag loc = Tag loc Nothing Nothing Nothing
 
 mergeTag :: Tag -> Tag -> Tag
 mergeTag (Tag _ _ s _) (Tag p l s' h) = Tag p l (maybe s Just s') h
@@ -61,6 +61,15 @@ $(mkLabels [''Ident, ''Tag])
 
 -- | Here is our database of identifiers.
 type Database = Map.Map Ident Tag
+data Export = ExpString String | ExpAll String | ExpSome String [String] | ExpModule String
+data Import = Import {
+  impModule :: String,
+  impList :: [Export],
+  impAlias :: Maybe String,
+  impQualified :: Bool,
+  impHiding :: Bool
+  }
+type Result = (String, [Import], [Export], Database)
 
 -- | Combine two databases.
 merge :: Database -> Database -> Database
@@ -79,22 +88,20 @@ haskellSource file = do
     where
     cppOpts = CPP.defaultCpphsOptions { CPP.boolopts = CPP.defaultBoolOptions { CPP.hashline = False } }
 
-createTags :: FilePath -> String -> Either (String, [String], Database, Database) String
+createTags :: FilePath -> String -> Either Result String
 createTags file s = 
   case L.parseFileContentsWithComments mode s of
-    L.ParseOk (m, comments) -> Left $ case extractModule m of
-                                    (name, (line, _), mods, dbExport, db) ->
-                                      let comments' = dropWhile (\((line', column'), _) -> line > line') $
-                                                     map extractComment comments 
-                                      in
-                                      (name, mods, 
-                                       commentsFixUp dbExport comments', 
-                                       commentsFixUp db comments')
+    L.ParseOk (m, comments) -> 
+      case extractModule m of
+        ((line, _), (mod, imps, exps, db)) -> 
+          Left (mod, imps, exps, commentsFixUp db $
+                                 dropWhile (\((line', _), _) -> line > line') $ 
+                                 map extractComment comments) 
     L.ParseFailed _ s -> Right s
   where
     mode = L.ParseMode {
       L.parseFilename = file,
-      L.extensions = L.knownExtensions ,
+      L.extensions = L.knownExtensions,
       L.ignoreLanguagePragmas = False,
       L.ignoreLinePragmas = False,
       L.fixities = Nothing
@@ -129,7 +136,7 @@ commentsFixUp db comments = Map.fromList $ commentsFixUp' objs comments
         (aboveComments, rest) = span (\((line', column'), str) -> line > line') comments 
         sideComments = filter (\((line', column'), str) -> line == line' && column' > column) rest
       in
-       (ident, set tagQuickHelp (extractHaddock aboveComments sideComments) tag) : commentsFixUp' objs rest
+       (ident, set tagQuickHelp (Just $ extractHaddock aboveComments sideComments) tag) : commentsFixUp' objs rest
 
 killIndent :: String -> String
 killIndent s = let l = reverse $ dropWhile (== "") $ reverse $ dropWhile (== "") $ lines s
@@ -170,52 +177,56 @@ pretty = Pretty.prettyPrintStyleMode
 type Span = L.SrcSpanInfo
 
 -- | Re-exports, exported database, all database.
-extractModule :: L.Module Span -> (String, (Int, Int), [String], Database, Database)
-extractModule (L.Module _ mh _ _ decls) = 
+extractModule :: L.Module Span -> ((Int, Int), Result)
+extractModule (L.Module _ mh _ importdecls decls) = 
   case mh of
     Just k@(L.ModuleHead loc (L.ModuleName _ s) _ exportspec) -> 
-      let 
-        loc' = extractLoc loc
-        db = setModule s decls'
-        (mods, dbExport) = 
-          case exportspec of 
-            Just (L.ExportSpecList _ l) -> foldl (\(mods, db') exportspec -> 
-                                              case extractExport exportspec db of
-                                                (mods', db'') -> (mods ++ mods', db' `merge` db'')) 
-                                           ([], Map.empty) l
-            Nothing -> ([], db) 
-      in
-       (s, extractLoc loc, mods, dbExport, db)
-    Nothing -> ("", (0, 0), [], decls', decls')
+      (extractLoc loc, (s, 
+                        map extractImport importdecls, 
+                        map extractExportSpec (maybe [] (\(L.ExportSpecList _ l) -> l) exportspec), 
+                        setModule s decls'))
+    Nothing -> ((0, 0), ("", [], [], decls'))
   where
     decls' = merges extractDecl decls
 extractModule _ = error "no"
 
+-- TODO don't forget to make a concat
+fromName :: L.Name Span -> String
+fromName (L.Ident _ s) = s
+fromName (L.Symbol _ s) = s
+
 fromQName :: L.QName Span -> String
-fromQName (L.Qual _ _ (L.Ident _ s)) = s
-fromQName (L.UnQual _ (L.Ident _ s)) = s
-fromQName (L.Qual _ _ (L.Symbol _ s)) = s
-fromQName (L.UnQual _ (L.Symbol _ s)) = s
-fromQName _ = ""
+fromQName (L.Qual _ (L.ModuleName _ s) n) = s ++ "." ++ fromName n
+fromQName (L.UnQual _ n) = fromName n
+fromQName (L.Special {}) = ""
 
 fromCName :: L.CName Span -> String
-fromCName (L.VarName _ (L.Ident _ s)) = s
-fromCName (L.ConName _ (L.Ident _ s)) = s
-fromCName (L.VarName _ (L.Symbol _ s)) = s
-fromCName (L.ConName _ (L.Symbol _ s)) = s
-fromCName _ = ""
+fromCName (L.VarName _ n) = fromName n
+fromCName (L.ConName _ n) = fromName n
 
-extractExport :: L.ExportSpec Span -> Database -> ([String], Database)
-extractExport (L.EVar _ q) db = ([], Map.filterWithKey (\i v -> get identStr i == fromQName q) db)
-extractExport (L.EAbs _ q) db = ([], Map.filterWithKey (\i v -> get identStr i == fromQName q) db)
-extractExport (L.EThingAll _ q) db = 
-  ([], 
-   Map.filterWithKey (\i v -> get identStr i == fromQName q 
-                              || fmap (get identStr) (get tagParent v) == Just (fromQName q)) db)
-extractExport (L.EThingWith _ q cs) db = 
-  ([], Map.filterWithKey (\i v -> get identStr i == fromQName q ||  
-                                  (any (\x -> fromCName x == get identStr i) cs)) db) -- 
-extractExport (L.EModuleContents _ (L.ModuleName _ s)) db = ([s], Map.empty) 
+extractExportSpec :: L.ExportSpec Span -> Export
+extractExportSpec (L.EVar _ q) = ExpString (fromQName q) 
+extractExportSpec (L.EAbs _ q) = ExpString (fromQName q) 
+extractExportSpec (L.EThingAll _ q) = ExpAll (fromQName q) 
+extractExportSpec (L.EThingWith _ q cs) = ExpSome (fromQName q) (map fromCName cs)
+extractExportSpec (L.EModuleContents _ (L.ModuleName _ s)) = ExpModule s
+
+extractImportSpec :: L.ImportSpec Span -> Export
+extractImportSpec (L.IVar _ n) = ExpString (fromName n) 
+extractImportSpec (L.IAbs _ n) = ExpString (fromName n) 
+extractImportSpec (L.IThingAll _ n) = ExpAll (fromName n) 
+extractImportSpec (L.IThingWith _ n cs) = ExpSome (fromName n) (map fromCName cs)
+
+-- importspeclist _ hide importspecs
+-- importspec 
+
+extractImport :: L.ImportDecl Span -> Import
+extractImport (L.ImportDecl _ (L.ModuleName _ s) qual _ _ alias importlist) =
+  case importlist of 
+    Just (L.ImportSpecList _ hidden impspecs) -> Import s (map extractImportSpec impspecs) alias' qual hidden  
+    Nothing -> Import s [] alias' qual False
+  where
+    alias' = fmap (\(L.ModuleName _ s) -> s) alias
 
 extractDecl :: L.Decl Span -> Database
 extractDecl k@(L.TypeDecl _ head type_) = 
@@ -315,60 +326,97 @@ doctorClassDecl _ = Nothing
 
 -- Export ----------------------------------------------------------------------
 
-quote [] = []
-quote ('"' : xs) = "\\\"" ++ quote xs
-quote ('\\' : xs) = "\\\\" ++ quote xs 
-quote (x : xs) = x : quote xs
-
-
--- | Here's where the format is!
-exportELisp :: FilePath -> String -> [String] -> Database -> String
-exportELisp file mod mods db = printf "(setq hie-load (append '%s %s))" export mods' 
+quote :: String -> String
+quote s = "\"" ++ quote' s ++ "\""
   where
-    
-    mods' = unlines $
-            map (\mod' -> printf "(hie-load-module \"%s\" \"%s\")" mod' mod) $
-            filter (/= mod) $ -- Stop self-recursive imports
-            mods             
-  
-    export :: String
-    export = printf "(%s)" . unlines . map exportTag $ Map.toList db 
-    
-    exportTag :: (Ident, Tag) -> String
-    exportTag (Ident name mod instance_, Tag (line, column) _ sig qh) = 
-      printf "(\"%s\" %s %s \"%s\" %i %i \"%s\" \"%s\")" 
-      (case instance_ of
-          ClassMember s -> quote (printf "%s/%s" name s)
-          _ -> quote name)
-      (maybe "nil" (printf "\"%s\"" . quote) mod) 
-      (case instance_ of
+    quote' [] = []
+    quote' ('"' : xs) = "\\\"" ++ quote' xs
+    quote' ('\\' : xs) = "\\\\" ++ quote' xs 
+    quote' (x : xs) = x : quote' xs
 
-      
-          NotInstance -> "nil"
-          _ -> "t")
-      file line column 
-      (quote $ fromMaybe "" sig) 
-      (quote qh)
+tplList :: [String] -> String
+tplList l = "(list " ++ intercalate "\n" l ++ ")"
 
+tplMaybe :: Maybe String -> String
+tplMaybe = fromMaybe "nil"
 
+tplBool :: Bool -> String
+tplBool True = "t"
+tplBool False = "nil"
+
+tplExport :: Export -> String
+tplExport (ExpString s) = printf "(list 'id %s)" (quote s)
+tplExport (ExpAll s) = printf "(list 'all %s)" (quote s)
+tplExport (ExpSome s xs) = printf "(list 'some %s %s)" (quote s) (tplList xs)
+tplExport (ExpModule s) = printf "(list 'mod %s)" (quote s)
+
+tplImport :: Import -> String 
+tplImport i = printf
+ (unlines ["(make-hieimport",
+          ":name %s",
+          ":list %s",
+          ":alias %s",
+          ":is-qualified %s",
+          ":is-hide %s)"])
+ (quote $ impModule i) 
+ (tplList (map tplExport $ impList i)) 
+ (tplMaybe (fmap quote $ impAlias i)) 
+ (tplBool $ impQualified i)  
+ (tplBool $ impHiding i)
+ 
+tplMakeName :: String -> InstanceData -> String 
+tplMakeName s (ClassMember c) = s ++ " / " ++ c
+tplMakeName s _ = s
+
+tplInstanceOf :: InstanceData -> String
+tplInstanceOf NotInstance = "nil"
+tplInstanceOf _ = "t"
+
+tplLocalDef :: FilePath -> (Ident, Tag) -> String
+tplLocalDef file (Ident name mod inst, Tag (line, _) parent sig qh) = printf
+ (unlines ["(make-hiedef",
+          ":name %s",
+          ":module %s",
+          ":is-instance %s",
+          ":parent %s",
+          ":file %s",
+          ":line %i",
+          ":signature %s",
+          ":help %s)"])
+          (quote (tplMakeName name inst)) 
+          (tplMaybe (fmap quote mod))
+          (tplMaybe (fmap (quote . get identStr) parent)) 
+          (tplInstanceOf inst)
+          (quote file)
+          line 
+          (tplMaybe (fmap quote sig)) 
+          (tplMaybe (fmap quote qh)) 
+           
+elisp :: FilePath -> Result -> String
+elisp file (mod, imps, exps, db) = printf 
+                                   (unlines ["(setq *hie-module-name* %s)",
+                                             "(setq *hie-locally-defined* %s)",
+                                             "(setq *hie-imports* %s)",
+                                             "(setq *hie-exports* %s)"])
+                                   (quote mod)
+                                   (tplList $ map (tplLocalDef file) $ Map.toList db)
+                                   (tplList $ map tplImport imps)
+                                   (tplList $ map tplExport exps)
 
 -- Driver ----------------------------------------------------------------------
 
-usage = putStrLn "Usage: hie [export|all] file.hs dump.el"
+usage = putStrLn "Usage: hie file.hs dump.el"
 
 main :: IO ()
 main = do 
   files <- getArgs
   case files of 
-    [spec, filein, fileout] -> do
+    [filein, fileout] -> do
       contents <- haskellSource filein
       case createTags filein contents of 
-        Left (mod, mods, dbExport, db) -> 
+        Left res -> 
           do path <- canonicalizePath filein
-             case spec of
-               "export" -> writeFile fileout (exportELisp path mod mods dbExport)
-               "all" -> writeFile fileout (exportELisp path mod mods db)
-               _ -> usage
+             writeFile fileout (elisp path res)
         Right s -> putStrLn s
     _ -> usage
   
