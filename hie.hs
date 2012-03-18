@@ -347,7 +347,6 @@ tplBool False = "nil"
 tplExport :: Export -> String
 tplExport (ExpString s) = printf "(list 'id %s)" (quote s)
 tplExport (ExpAll s) = printf "(list 'all %s)" (quote s)
-tplExport (ExpSome s xs) = printf "(list 'some %s %s)" (quote s) (tplList xs)
 tplExport (ExpModule s) = printf "(list 'mod %s)" (quote s)
 
 tplImport :: Import -> String 
@@ -355,9 +354,9 @@ tplImport i = printf
  (unlines ["(make-hieimport",
           ":name %s",
           ":list %s",
-          ":alias %s",
+          ":alias %s", -- TODO make this non-optional
           ":is-qualified %s",
-          ":is-hide %s)"])
+          ":is-hidden %s)"])
  (quote $ impModule i) 
  (tplList (map tplExport $ impList i)) 
  (tplMaybe (fmap quote $ impAlias i)) 
@@ -394,10 +393,10 @@ tplLocalDef file (Ident name mod inst, Tag (line, _) parent sig qh) = printf
            
 elisp :: FilePath -> Result -> String
 elisp file (mod, imps, exps, db) = printf 
-                                   (unlines ["(setq *hie-module-name* %s)",
-                                             "(setq *hie-locally-defined* %s)",
-                                             "(setq *hie-imports* %s)",
-                                             "(setq *hie-exports* %s)"])
+                                   (unlines ["(setq *hie-load* (make-hiemod :name %s",
+                                             ":defs %s",
+                                             ":imports %s",
+                                             ":exports %s))"])
                                    (quote mod)
                                    (tplList $ map (tplLocalDef file) $ Map.toList db)
                                    (tplList $ map tplImport imps)

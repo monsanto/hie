@@ -85,6 +85,14 @@ The union of hie-buffer-imports-hash and hie-buffer-defined-hash.")
   "The regexp used for finding modules")
 
 ;
+; Structures
+;
+
+(defstruct hieimport name list alias is-qualified is-hidden)
+(defstruct hiedef name module is-instance parent file line signature help)
+(defstruct hiemod name defs imports exports)
+
+;
 ; Main interactives
 ;
 
@@ -219,6 +227,96 @@ by exploiting the difference between new-hash and old-hash. Warning: This destro
   (setq hie-load nil)
   (load file t t)
   hie-load)
+
+
+;; Scratch Space
+
+(defun hie-make-help (def) 
+  (if (and (hiedef-signature def) (hiedef-help def))
+      (concat (hiedef-signature def) "\n\n" (hiedef-help def))
+    ((or (hiedef-signature def) (hiedef-help def)))))
+
+(defun hie-external-defs (mod)
+  (hie-filter-defs t (hiemod-exports mod) (hie-internal-defs mod)))
+
+(defun hie-internal-defs (mod)
+  (append (hiemod-defs mod)
+	  (hie-remod-defs (hiemod-name mod)
+			  (loop for import in (hiemod-imports mod)
+				append (hie-import-module import)))))
+
+(defun hie-load-file (file)
+  "Create completion table, etc for given module."
+  (setq hie-load nil)
+  (load file t t)
+  hie-load)
+
+(defun hie-import-module (import)
+  "Import a module given by import spec `import`, into namespace `name`."
+  (let* ((base-defs (hie-external-defs (hie-get-module (hieimport-name import))))
+	 (defs (if (hieimport-list import) 
+		    (hie-filter-defs (hieimport-hidden import) (hieimport-list import) base-defs) 
+		  base-defs))
+	 (alias-defs (hie-alias-defs (hieimport-alias import) defs)))
+    (if (hieimport-qualified import)
+	alias-defs
+      (append defs alias-defs))))
+
+(defun hie-remod-defs (new-mod defs)
+  "Strips out anything not in the namespace old-mod, and renames the rest to new-mod."
+  (loop for def in defs
+	collect (setf (hiedef-module (copy-hiedef def)) new-mod)))
+
+
+(defun hie-alias-defs (new-scope defs)
+  "Strips out anything not in the namespace old-mod, and renames the rest to new-mod."
+  (loop for def in defs
+	collect (setf (hiedef-name (copy-hiedef def))
+		      (concat new-scope "." (hiedef-name def)))))
+
+(defun hie-filter-defs (selector export defs)
+  "Remove objects not exported by module `mod`."
+  (loop for def in defs
+	with (tag . info) = export 
+	if (eq selector (cond ((eq tag 'id) (equal (hiedef-name def) (car info)))
+			  ((eq tag 'all) (or (equal (hiedef-name def) (car info))
+					     (equal (hiedef-parent def) (car info))))))
+	collect def))
+
+
+
+
+
+
+
+
+;; End Scratch Space
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 (defun hie-load-module (module &optional renamemod)
   "Create completion table, etc for given module."
