@@ -37,8 +37,7 @@ data InstanceData = InstanceDecl
                     deriving (Show, Eq, Ord)
 
 data Ident = Ident {
-  _identStr :: String,             -- ^What is the name of the object in question?
-  _identModule :: Maybe String,    -- ^What is the scoping?
+  _identStr :: String,             -- ^What is the name of the object in question? 
   _identInstanceOf :: InstanceData -- ^Is this an instance? Of what?
   } deriving (Show, Eq, Ord)
                    
@@ -49,7 +48,7 @@ data Tag = Tag {
   _tagQuickHelp :: Maybe String   -- ^... in English, please...
   } deriving Show
              
-newIdent s = Ident s Nothing NotInstance 
+newIdent s = Ident s NotInstance 
 newTag loc = Tag loc Nothing Nothing Nothing
 
 mergeTag :: Tag -> Tag -> Tag
@@ -61,11 +60,11 @@ $(mkLabels [''Ident, ''Tag])
 
 -- | Here is our database of identifiers.
 type Database = Map.Map Ident Tag
-data Export = ExpString String | ExpAll String | ExpSome String [String] | ExpModule String
+data Export = ExpString String | ExpAll String | ExpModule String
 data Import = Import {
   impModule :: String,
   impList :: [Export],
-  impAlias :: Maybe String,
+  impAlias :: String,
   impQualified :: Bool,
   impHiding :: Bool
   }
@@ -81,13 +80,6 @@ mergeWithParent m m' = Map.unionWith mergeTag m (Map.map (set tagParent (Just $ 
 merges :: (a -> Database) -> [a] -> Database
 merges f = Map.unionsWith mergeTag . map f
 
-haskellSource :: FilePath -> IO String
-haskellSource file = do
-    contents <- readFile file
-    CPP.runCpphs cppOpts file contents
-    where
-    cppOpts = CPP.defaultCpphsOptions { CPP.boolopts = CPP.defaultBoolOptions { CPP.hashline = False } }
-
 createTags :: FilePath -> String -> Either Result String
 createTags file s = 
   case L.parseFileContentsWithComments mode s of
@@ -101,7 +93,10 @@ createTags file s =
   where
     mode = L.ParseMode {
       L.parseFilename = file,
-      L.extensions = L.knownExtensions,
+      L.extensions = L.glasgowExts ++ [L.TemplateHaskell, 
+                                       L.QuasiQuotes, 
+                                       L.PackageImports, 
+                                       L.NamedFieldPuns],
       L.ignoreLanguagePragmas = False,
       L.ignoreLinePragmas = False,
       L.fixities = Nothing
@@ -110,10 +105,6 @@ createTags file s =
   -- | Set the signature of the database.         
 setSig :: (Pretty.Pretty a) => a -> Database -> Database
 setSig k = Map.map (set tagSignature . Just $ pretty k)
-
-setModule :: String -> Database -> Database
-setModule s = Map.mapKeys (set identModule $ Just s)
-
 
 -- | Add a context to the signature.
 mapSigCtxt :: (Pretty.Pretty a) => a -> Database -> Database
@@ -182,11 +173,12 @@ extractModule (L.Module _ mh _ importdecls decls) =
   case mh of
     Just k@(L.ModuleHead loc (L.ModuleName _ s) _ exportspec) -> 
       (extractLoc loc, (s, 
-                        map extractImport importdecls, 
-                        map extractExportSpec (maybe [] (\(L.ExportSpecList _ l) -> l) exportspec), 
-                        setModule s decls'))
-    Nothing -> ((0, 0), ("", [], [], decls'))
+                        imports, 
+                        concatMap extractExportSpec (maybe [] (\(L.ExportSpecList _ l) -> l) exportspec), 
+                        decls'))
+    Nothing -> ((0, 0), ("", imports, [], decls'))
   where
+    imports = map extractImport importdecls
     decls' = merges extractDecl decls
 extractModule _ = error "no"
 
@@ -195,27 +187,34 @@ fromName :: L.Name Span -> String
 fromName (L.Ident _ s) = s
 fromName (L.Symbol _ s) = s
 
-fromQName :: L.QName Span -> String
-fromQName (L.Qual _ (L.ModuleName _ s) n) = s ++ "." ++ fromName n
-fromQName (L.UnQual _ n) = fromName n
-fromQName (L.Special {}) = ""
+fromQName :: L.QName Span -> (String, String)
+fromQName (L.Qual _ (L.ModuleName _ s) n) = (s, fromName n)
+fromQName (L.UnQual _ n) = ("", fromName n)
+fromQName (L.Special {}) = ("", "")
+
+qualit ("", y) = y
+qualit (x, y) = x ++ "." ++ y
 
 fromCName :: L.CName Span -> String
 fromCName (L.VarName _ n) = fromName n
 fromCName (L.ConName _ n) = fromName n
 
-extractExportSpec :: L.ExportSpec Span -> Export
-extractExportSpec (L.EVar _ q) = ExpString (fromQName q) 
-extractExportSpec (L.EAbs _ q) = ExpString (fromQName q) 
-extractExportSpec (L.EThingAll _ q) = ExpAll (fromQName q) 
-extractExportSpec (L.EThingWith _ q cs) = ExpSome (fromQName q) (map fromCName cs)
-extractExportSpec (L.EModuleContents _ (L.ModuleName _ s)) = ExpModule s
+extractExportSpec :: L.ExportSpec Span -> [Export]
+extractExportSpec (L.EVar _ q) = [ExpString (qualit $ fromQName q)]
+extractExportSpec (L.EAbs _ q) = [ExpString (qualit $ fromQName q)]
+extractExportSpec (L.EThingAll _ q) = [ExpAll (qualit $ fromQName q)]
+extractExportSpec (L.EThingWith _ q cs) = ExpString (qualit (x, y)) : 
+                                          map (\y' -> ExpString $ qualit (x, fromCName y')) cs 
+  where 
+    (x, y) = fromQName q
+extractExportSpec (L.EModuleContents _ (L.ModuleName _ s)) = [ExpModule s]
 
-extractImportSpec :: L.ImportSpec Span -> Export
-extractImportSpec (L.IVar _ n) = ExpString (fromName n) 
-extractImportSpec (L.IAbs _ n) = ExpString (fromName n) 
-extractImportSpec (L.IThingAll _ n) = ExpAll (fromName n) 
-extractImportSpec (L.IThingWith _ n cs) = ExpSome (fromName n) (map fromCName cs)
+extractImportSpec :: L.ImportSpec Span -> [Export]
+extractImportSpec (L.IVar _ n) = [ExpString (fromName n)]
+extractImportSpec (L.IAbs _ n) = [ExpString (fromName n)] 
+extractImportSpec (L.IThingAll _ n) = [ExpAll (fromName n)]
+extractImportSpec (L.IThingWith _ n cs) = ExpString (fromName n) : 
+                                          map (ExpString . fromCName) cs
 
 -- importspeclist _ hide importspecs
 -- importspec 
@@ -223,10 +222,10 @@ extractImportSpec (L.IThingWith _ n cs) = ExpSome (fromName n) (map fromCName cs
 extractImport :: L.ImportDecl Span -> Import
 extractImport (L.ImportDecl _ (L.ModuleName _ s) qual _ _ alias importlist) =
   case importlist of 
-    Just (L.ImportSpecList _ hidden impspecs) -> Import s (map extractImportSpec impspecs) alias' qual hidden  
+    Just (L.ImportSpecList _ hidden impspecs) -> Import s (concatMap extractImportSpec impspecs) alias' qual hidden  
     Nothing -> Import s [] alias' qual False
   where
-    alias' = fmap (\(L.ModuleName _ s) -> s) alias
+    alias' = maybe s (\(L.ModuleName _ s) -> s) alias
 
 extractDecl :: L.Decl Span -> Database
 extractDecl k@(L.TypeDecl _ head type_) = 
@@ -359,7 +358,7 @@ tplImport i = printf
           ":is-hidden %s)"])
  (quote $ impModule i) 
  (tplList (map tplExport $ impList i)) 
- (tplMaybe (fmap quote $ impAlias i)) 
+ (quote $ impAlias i)
  (tplBool $ impQualified i)  
  (tplBool $ impHiding i)
  
@@ -372,24 +371,22 @@ tplInstanceOf NotInstance = "nil"
 tplInstanceOf _ = "t"
 
 tplLocalDef :: FilePath -> (Ident, Tag) -> String
-tplLocalDef file (Ident name mod inst, Tag (line, _) parent sig qh) = printf
+tplLocalDef file (Ident name inst, Tag (line, _) parent sig qh) = printf
  (unlines ["(make-hiedef",
           ":name %s",
-          ":module %s",
           ":is-instance %s",
           ":parent %s",
           ":file %s",
           ":line %i",
           ":signature %s",
           ":help %s)"])
-          (quote (tplMakeName name inst)) 
-          (tplMaybe (fmap quote mod))
-          (tplMaybe (fmap (quote . get identStr) parent)) 
-          (tplInstanceOf inst)
-          (quote file)
-          line 
-          (tplMaybe (fmap quote sig)) 
-          (tplMaybe (fmap quote qh)) 
+ (quote (tplMakeName name inst)) 
+ (tplInstanceOf inst)
+ (tplMaybe (fmap (quote . get identStr) parent)) 
+ (quote file)
+ line 
+ (tplMaybe (fmap quote sig)) 
+ (tplMaybe (fmap quote qh)) 
            
 elisp :: FilePath -> Result -> String
 elisp file (mod, imps, exps, db) = printf 
@@ -404,19 +401,23 @@ elisp file (mod, imps, exps, db) = printf
 
 -- Driver ----------------------------------------------------------------------
 
-usage = putStrLn "Usage: hie file.hs dump.el"
+usage = putStrLn "Usage: hie file-to-jump-to (reads file from stdin; writes to stdout)"
+
+
+runCPP :: String -> IO String
+runCPP contents = CPP.runCpphs cppOpts "" contents
+  where
+    cppOpts = CPP.defaultCpphsOptions { CPP.boolopts = CPP.defaultBoolOptions { CPP.hashline = False } }
 
 main :: IO ()
 main = do 
   files <- getArgs
   case files of 
-    [filein, fileout] -> do
-      contents <- haskellSource filein
-      case createTags filein contents of 
-        Left res -> 
-          do path <- canonicalizePath filein
-             writeFile fileout (elisp path res)
-        Right s -> putStrLn s
+    [path] -> do
+      contents <- getContents >>= runCPP
+      case createTags path contents of 
+        Left res -> putStrLn (elisp path res)
+        Right s -> hPutStrLn stderr s
     _ -> usage
   
                 
