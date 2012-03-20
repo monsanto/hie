@@ -57,7 +57,6 @@ newTag loc = Tag loc Nothing Nothing Nothing
 mergeTag :: Tag -> Tag -> Tag
 mergeTag (Tag _ _ s _) (Tag p l s' h) = Tag p l (maybe s Just s') h
   
-$(mkLabels [''Ident, ''Tag])
 
 -- Database --------------------------------------------------------------------
 
@@ -65,12 +64,13 @@ $(mkLabels [''Ident, ''Tag])
 type Database = Map.Map Ident Tag
 data Export = ExpString String | ExpAll String | ExpModule String
 data Import = Import {
-  impModule :: String,
-  impList :: [Export],
-  impAlias :: String,
-  impQualified :: Bool,
-  impHiding :: Bool
+  _impModule :: String,
+  _impList :: [Export],
+  _impAlias :: String,
+  _impQualified :: Bool,
+  _impHiding :: Bool
   }
+$(mkLabels [''Ident, ''Tag, ''Import])              
 type Result = (String, [Import], [Export], Database)
 
 -- | Combine two databases.
@@ -80,8 +80,10 @@ merge = Map.unionWith mergeTag
 mergeWithParent :: Database -> Database -> Database
 mergeWithParent m m' = Map.unionWith mergeTag m (Map.map (set tagParent (Just $ head $ Map.keys m)) m') 
 
+
 merges :: (a -> Database) -> [a] -> Database
 merges f = Map.unionsWith mergeTag . map f
+
 
 createTags :: FilePath -> String -> Either Result String
 createTags file s = 
@@ -93,7 +95,7 @@ createTags file s =
                     dropWhile (\((line', _), _) -> line > line') $ 
                     map extractComment comments
           in
-           Left (mod, imps, exps, aliasModules mod db) 
+           Left (mod, imps, exps, aliasModules mod db') 
     L.ParseFailed (L.SrcLoc _ l c) s -> Right (printf "%i, %i: %s" l c s)
   where
     
@@ -175,25 +177,38 @@ pretty = Pretty.prettyPrintStyleMode
          Pretty.style 
          Pretty.defaultMode { Pretty.classIndent = 4, 
                               Pretty.spacing = False}
+         
 
 -- Extraction ------------------------------------------------------------------
 
 type Span = L.SrcSpanInfo
 
+noPrelude = any (== "NoImplicitPrelude") . concat . mapMaybe (\x -> case x of 
+                                                        L.LanguagePragma _ ns -> Just $ map fromName ns
+                                                        _ -> Nothing)
+  
+addPrelude :: [Import] -> [Import]
+addPrelude l | not $ any ((== "Prelude") . get impModule) l = Import "Prelude" [] "Prelude" False False : l
+             | otherwise = l
+
 -- | Re-exports, exported database, all database.
 extractModule :: L.Module Span -> ((Int, Int), Result)
-extractModule (L.Module _ mh _ importdecls decls) = 
+extractModule (L.Module _ mh prags importdecls decls) = 
   case mh of
     Just k@(L.ModuleHead loc (L.ModuleName _ s) _ exportspec) -> 
       (extractLoc loc, (s, 
-                        imports, 
+                        imports', 
                         concatMap extractExportSpec (maybe [] (\(L.ExportSpecList _ l) -> l) exportspec), 
                         decls'))
-    Nothing -> ((0, 0), ("", imports, [], decls'))
+    Nothing -> ((0, 0), ("", imports', [], decls'))
   where
     imports = mapMaybe extractImport importdecls
+    imports' | noPrelude prags = imports
+             | otherwise = addPrelude imports
     decls' = merges extractDecl decls
 extractModule _ = error "no"
+
+
 
 -- TODO don't forget to make a concat
 fromName :: L.Name Span -> String
@@ -229,8 +244,6 @@ extractImportSpec (L.IThingAll _ n) = [ExpAll (fromName n)]
 extractImportSpec (L.IThingWith _ n cs) = ExpString (fromName n) : 
                                           map (ExpString . fromCName) cs
 
--- importspeclist _ hide importspecs
--- importspec 
 
 extractImport :: L.ImportDecl Span -> Maybe Import
 extractImport (L.ImportDecl _ (L.ModuleName _ s) qual issrc _ alias importlist) 
@@ -368,14 +381,14 @@ tplImport i = printf
  (unlines ["(make-hieimport",
           ":name %s",
           ":list %s",
-          ":alias %s", -- TODO make this non-optional
+          ":alias %s", 
           ":is-qualified %s",
           ":is-hidden %s)"])
- (quote $ impModule i) 
- (tplList (map tplExport $ impList i)) 
- (quote $ impAlias i)
- (tplBool $ impQualified i)  
- (tplBool $ impHiding i)
+ (quote $ get impModule i) 
+ (tplList (map tplExport $ get impList i)) 
+ (quote $ get impAlias i)
+ (tplBool $ get impQualified i)  
+ (tplBool $ get impHiding i)
  
 tplMakeName :: String -> InstanceData -> String 
 tplMakeName s (ClassMember c) = s ++ " / " ++ c
@@ -409,7 +422,7 @@ elisp file (mod, imps, exps, db) = printf
                                              ":defs %s",
                                              ":imports %s",
                                              ":exports %s))"])
-                                   (quote mod)
+                                   (if (null mod) then "nil" else (quote mod))
                                    (tplList $ map (tplLocalDef file) $ Map.toList db)
                                    (tplList $ map tplImport imps)
                                    (tplList $ map tplExport exps)
