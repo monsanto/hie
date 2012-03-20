@@ -110,37 +110,39 @@ Updating this implies that you should update hie-buffer-idents-hash, but note th
 ; Main interactives
 ;
 
-(defun hie-the-hash ()
+(defun hie-global-defshash ()
   (if hie-mode
       hie-buffer-idents-hash
     hie-buffer-idents-hash))
 
-(defun hie-jump-to-definition (&optional name)
+(defun hie-initial-text ()
+  (when (gethash (haskell-ident-at-point)
+		 (hie-global-defshash))
+    (haskell-ident-at-point)))
+
+(defun hie-read-ident (prompt &optional filter)
+  (let ((name (completing-read prompt
+				(hie-global-defshash)
+				filter 
+				nil
+				(hie-initial-text))))
+    (gethash name (hie-global-defshash))))
+
+(defun hie-jump-to-definition ()
   "Jump to the given definition."
   (interactive)
-  (let* ((ident (haskell-ident-at-point))
-	 (name (completing-read "Jump to definition: "
-				(hie-the-hash)
-				nil
-				nil
-				(or name (if (gethash ident (hie-the-hash)) ident nil))))
-	 (def (gethash name (hie-the-hash))))
-    (find-file (hiedef-file def))
-    (goto-char (point-min))
-    (forward-line (1- (hiedef-line def)))))
+  (let ((def (hie-read-ident "Jump to def: " (lambda (key def) (not (hiedef-is-instance def))))))
+    (when def
+      (find-file (hiedef-file def))
+      (goto-char (point-min))
+      (forward-line (1- (hiedef-line def))))))
 
-(defun hie-show-signature (&optional name)
+(defun hie-show-signature ()
   "Show the signature in the mode line."
   (interactive)
-  (let* ((ident (haskell-ident-at-point))
-	 (name (completing-read "Show signature: "
-				(hie-the-hash)
-				(lambda (key def) (not (hiedef-is-instance def))) 
-				nil 
-				(or name (if (gethash ident (hie-the-hash)) ident nil))))
-	 (def (gethash name (hie-the-hash))))
-    (display-message-or-buffer (hie-make-help def))))
-
+  (let ((def (hie-read-ident "Signature: ")))
+    (when def 
+      (display-message-or-buffer (hie-make-help def)))))
 
 (defun hie-make-help (def) 
   (if (and (hiedef-signature def) (hiedef-help def))
