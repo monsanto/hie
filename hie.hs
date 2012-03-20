@@ -28,6 +28,9 @@ import           System.Environment
 import           System.IO
 import           System.Directory
 import           Control.Monad
+import System.Exit
+import Text.Regex
+
 
 -- Tags ------------------------------------------------------------------------
 
@@ -86,11 +89,14 @@ createTags file s =
     L.ParseOk (m, comments) -> 
       case extractModule m of
         ((line, _), (mod, imps, exps, db)) -> 
-          Left (mod, imps, exps, commentsFixUp db $
-                                 dropWhile (\((line', _), _) -> line > line') $ 
-                                 map extractComment comments) 
-    L.ParseFailed _ s -> Right s
+          let db' = commentsFixUp db $
+                    dropWhile (\((line', _), _) -> line > line') $ 
+                    map extractComment comments
+          in
+           Left (mod, imps, exps, aliasModules mod db) 
+    L.ParseFailed (L.SrcLoc _ l c) s -> Right (printf "%i, %i: %s" l c s)
   where
+    
     mode = L.ParseMode {
       L.parseFilename = file,
       L.extensions = L.glasgowExts ++ [L.TemplateHaskell, 
@@ -105,6 +111,13 @@ createTags file s =
   -- | Set the signature of the database.         
 setSig :: (Pretty.Pretty a) => a -> Database -> Database
 setSig k = Map.map (set tagSignature . Just $ pretty k)
+
+aliasModules :: String -> Database -> Database 
+aliasModules "" db = db
+aliasModules s db = Map.union db (Map.mapKeys f db) 
+  where
+    f (Ident s' NotInstance) = (Ident (s ++ "." ++ s') NotInstance)
+    f i = i
 
 -- | Add a context to the signature.
 mapSigCtxt :: (Pretty.Pretty a) => a -> Database -> Database
@@ -178,7 +191,7 @@ extractModule (L.Module _ mh _ importdecls decls) =
                         decls'))
     Nothing -> ((0, 0), ("", imports, [], decls'))
   where
-    imports = map extractImport importdecls
+    imports = mapMaybe extractImport importdecls
     decls' = merges extractDecl decls
 extractModule _ = error "no"
 
@@ -219,11 +232,13 @@ extractImportSpec (L.IThingWith _ n cs) = ExpString (fromName n) :
 -- importspeclist _ hide importspecs
 -- importspec 
 
-extractImport :: L.ImportDecl Span -> Import
-extractImport (L.ImportDecl _ (L.ModuleName _ s) qual _ _ alias importlist) =
-  case importlist of 
-    Just (L.ImportSpecList _ hidden impspecs) -> Import s (concatMap extractImportSpec impspecs) alias' qual hidden  
-    Nothing -> Import s [] alias' qual False
+extractImport :: L.ImportDecl Span -> Maybe Import
+extractImport (L.ImportDecl _ (L.ModuleName _ s) qual issrc _ alias importlist) 
+  | not issrc = Just $ case importlist of 
+          Just (L.ImportSpecList _ hidden impspecs) -> 
+            Import s (concatMap extractImportSpec impspecs) alias' qual hidden  
+          Nothing -> Import s [] alias' qual False
+    | otherwise = Nothing
   where
     alias' = maybe s (\(L.ModuleName _ s) -> s) alias
 
@@ -407,7 +422,28 @@ usage = putStrLn "Usage: hie file-to-jump-to (reads file from stdin; writes to s
 runCPP :: String -> IO String
 runCPP contents = CPP.runCpphs cppOpts "" contents
   where
-    cppOpts = CPP.defaultCpphsOptions { CPP.boolopts = CPP.defaultBoolOptions { CPP.hashline = False } }
+    cppOpts = CPP.defaultCpphsOptions { 
+      CPP.defines = [("__GLASGOW_HASKELL__", "0"),
+                     ("SIZEOF_HSWORD", "4"),
+                     ("FLT_RADIX", "2"),
+                     ("WORD_SIZE_IN_BITS", "32"),
+                     ("HAVE_KQUEUE", "1")], 
+      CPP.boolopts = CPP.defaultBoolOptions { 
+         CPP.hashline = False,
+         CPP.warnings = False
+         } 
+      }
+              
+    
+sub regex repl s = subRegex (mkRegex regex) s repl
+  
+-- Workaround bugs in haskell-src-exts
+fixBugsHack :: String -> String
+fixBugsHack = sub "\\(#" "(" .
+              sub "#\\)" ")" .
+              sub "0x[A-Fa-f0-9]+#" "0" .  
+              sub "SPECIALISE \\[[0-9]\\]" "SPECIALISE" .
+              sub "'\\\\x[A-Fa-f0-9]+'" "'k'"
 
 main :: IO ()
 main = do 
@@ -415,9 +451,10 @@ main = do
   case files of 
     [path] -> do
       contents <- getContents >>= runCPP
-      case createTags path contents of 
-        Left res -> putStrLn (elisp path res)
-        Right s -> hPutStrLn stderr s
+      let contents' = fixBugsHack contents
+      case createTags path contents' of 
+        Left res -> putStrLn (elisp path res) >> exitSuccess
+        Right s -> hPutStrLn stderr s >> exitFailure
     _ -> usage
   
                 

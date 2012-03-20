@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 
-# hie-hacks.py
+# hie-hackage.py
+# For generating documentation for hackage modules and the hacks necessary...
+#
 # Christopher Monsanto <chris@monsan.to>
 # License: GPLv3 
 
@@ -9,6 +11,11 @@ import os, fnmatch
 from glob import glob
 import re
 import subprocess
+
+def hie(f, inp):
+    k = subprocess.Popen(["hie", f], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+    data = k.communicate(inp)[0]
+    return data
 
 directory = sys.argv[1]
 
@@ -28,11 +35,22 @@ for f in files:
     
     if not parts:
         continue
-    
+
     module = ".".join(parts)
-    ex = "hie %s < %s > %s/%s" % (f, f, directory, module)
-    print ex
-    os.system(ex)
+    to = "%s/%s" % (directory, module)
+
+    with open(f) as h:
+        data = h.read()
+
+    with open(to, "w") as h:
+        print
+        print f
+        print "----------------------"
+        print
+    
+        h.write(hie(f, data))
+            
+
 
 
 
