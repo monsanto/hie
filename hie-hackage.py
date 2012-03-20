@@ -18,6 +18,8 @@ def hie(f, inp):
     return data
 
 directory = sys.argv[1]
+sources_directory = sys.argv[2]
+prefixes = sys.argv[3:] or ["Algebra", "Codec", "Control", "Data", "Database", "Debug", "Foreign", "GHC", "Graphics", "Language", "Numeric", "Network", "Prelude", "Sound", "System", "Test", "Text", "Training"]
 
 def find_files(directory, pattern):
     for root, dirs, files in os.walk(directory):
@@ -29,10 +31,22 @@ def find_files(directory, pattern):
 files = list(find_files(".", "*.hs")) + list(find_files(".", "*.lhs"))
 
 for f in files:
-    parts = [part.replace(".hs", "").replace(".lhs", "")
-             for part in f.split("/")
-             if re.match("^[A-Z]", part) and part != "Setup.hs"]
-    
+    path = os.path.abspath(f).replace(sources_directory, "%s/")
+
+    writeit = False
+    parts = []
+    for part in f.split("/"):
+        part = part.replace(".hs", "").replace(".lhs", "")
+
+        if part in prefixes:
+            writeit = True
+        elif not re.match("^[A-Z]", part):
+            parts = []
+            writeit = False
+
+        if writeit:
+            parts.append(part)
+
     if not parts:
         continue
 
@@ -48,7 +62,7 @@ for f in files:
         print "----------------------"
         print
     
-        h.write(hie(f, data))
+        h.write(hie(path, data))
             
 
 

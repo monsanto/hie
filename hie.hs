@@ -2,14 +2,6 @@
 {-# LANGUAGE TemplateHaskell, NoMonomorphismRestriction #-}
 
 -- | I, Chris Monsanto <chris@monsan.to>, wrote this code. It's under GPLv3.
--- 
--- TL;DR: BigDump.hs dumps a bunch of information about your Haskell files into Lisp lists.
---        Using this information, we provide goto-definition/autocomplete/etc in your Emacs.
--- 
--- A design decision is to *not* send ASTs to Emacs. Haskell is way better at list processing
--- than Emacs is :) Seriously, where's the pattern matching? If you want to customize how it works,
--- customize the Haskell part, not the Emacs part...
--- 
 
 import qualified Language.Haskell.Exts.Annotated as L
 import qualified Language.Haskell.Exts.Pretty    as Pretty
@@ -30,6 +22,8 @@ import           System.Directory
 import           Control.Monad
 import System.Exit
 import Text.Regex
+
+
 
 
 -- Tags ------------------------------------------------------------------------
@@ -98,16 +92,54 @@ createTags file s =
            Left (mod, imps, exps, aliasModules mod db') 
     L.ParseFailed (L.SrcLoc _ l c) s -> Right (printf "%i, %i: %s" l c s)
   where
-    
+    exts = fromMaybe [] (L.readExtensions s)
     mode = L.ParseMode {
-      L.parseFilename = file,
-      L.extensions = L.glasgowExts ++ [L.TemplateHaskell, 
-                                       L.QuasiQuotes, 
-                                       L.PackageImports, 
-                                       L.NamedFieldPuns],
+      L.parseFilename = "", -- we unlit before, so don't do it again.
+      L.extensions = [
+        L.ForeignFunctionInterface
+        , L.UnliftedFFITypes
+        , L.GADTs
+        , L.ImplicitParams
+        , L.ScopedTypeVariables
+        , L.UnboxedTuples
+        , L.TypeSynonymInstances
+        , L.StandaloneDeriving
+        , L.DeriveDataTypeable
+        , L.FlexibleContexts
+        , L.FlexibleInstances
+        , L.ConstrainedClassMethods
+        , L.MultiParamTypeClasses
+        , L.FunctionalDependencies
+        , L.MagicHash
+        , L.PolymorphicComponents
+        , L.ExistentialQuantification
+        , L.UnicodeSyntax
+        , L.PostfixOperators
+        , L.PatternGuards
+        , L.LiberalTypeSynonyms
+        , L.RankNTypes
+        , L.ImpredicativeTypes
+        , L.TypeOperators
+        , L.RecursiveDo
+        , L.ParallelListComp
+        , L.EmptyDataDecls
+        , L.KindSignatures
+        , L.GeneralizedNewtypeDeriving
+        --, L.TypeFamilies
+        , L.TemplateHaskell
+        , L.PackageImports 
+        , L.NamedFieldPuns
+        , L.ViewPatterns 
+        , L.TupleSections
+        , L.QuasiQuotes 
+        ] ++ exts ++ 
+                     if L.UnknownExtension "NoBangPatterns" `elem` exts 
+                     then [] 
+                     else [L.BangPatterns]
+                       ,
       L.ignoreLanguagePragmas = False,
       L.ignoreLinePragmas = False,
-      L.fixities = Nothing
+      L.fixities = Nothing 
       }
   
   -- | Set the signature of the database.         
@@ -196,10 +228,12 @@ extractModule :: L.Module Span -> ((Int, Int), Result)
 extractModule (L.Module _ mh prags importdecls decls) = 
   case mh of
     Just k@(L.ModuleHead loc (L.ModuleName _ s) _ exportspec) -> 
-      (extractLoc loc, (s, 
-                        imports', 
-                        concatMap extractExportSpec (maybe [] (\(L.ExportSpecList _ l) -> l) exportspec), 
-                        decls'))
+      (extractLoc loc, 
+       (s, imports', 
+        case concatMap extractExportSpec (maybe [] (\(L.ExportSpecList _ l) -> l) exportspec) of
+          [] -> [ExpModule s]
+          xs -> xs, 
+        decls'))
     Nothing -> ((0, 0), ("", imports', [], decls'))
   where
     imports = mapMaybe extractImport importdecls
@@ -244,14 +278,13 @@ extractImportSpec (L.IThingAll _ n) = [ExpAll (fromName n)]
 extractImportSpec (L.IThingWith _ n cs) = ExpString (fromName n) : 
                                           map (ExpString . fromCName) cs
 
-
 extractImport :: L.ImportDecl Span -> Maybe Import
 extractImport (L.ImportDecl _ (L.ModuleName _ s) qual issrc _ alias importlist) 
   | not issrc = Just $ case importlist of 
-          Just (L.ImportSpecList _ hidden impspecs) -> 
-            Import s (concatMap extractImportSpec impspecs) alias' qual hidden  
-          Nothing -> Import s [] alias' qual False
-    | otherwise = Nothing
+    Just (L.ImportSpecList _ hidden impspecs) -> 
+      Import s (concatMap extractImportSpec impspecs) alias' qual hidden  
+    Nothing -> Import s [] alias' qual True
+  | otherwise = Nothing
   where
     alias' = maybe s (\(L.ModuleName _ s) -> s) alias
 
@@ -399,20 +432,22 @@ tplInstanceOf NotInstance = "nil"
 tplInstanceOf _ = "t"
 
 tplLocalDef :: FilePath -> (Ident, Tag) -> String
-tplLocalDef file (Ident name inst, Tag (line, _) parent sig qh) = printf
+tplLocalDef file (Ident name inst, Tag (line, column) parent sig qh) = printf
  (unlines ["(make-hiedef",
           ":name %s",
           ":is-instance %s",
           ":parent %s",
           ":file %s",
           ":line %i",
+          ":column %i",
           ":signature %s",
           ":help %s)"])
  (quote (tplMakeName name inst)) 
  (tplInstanceOf inst)
  (tplMaybe (fmap (quote . get identStr) parent)) 
  (quote file)
- line 
+ line
+ column
  (tplMaybe (fmap quote sig)) 
  (tplMaybe (fmap quote qh)) 
            
@@ -432,38 +467,41 @@ elisp file (mod, imps, exps, db) = printf
 usage = putStrLn "Usage: hie file-to-jump-to (reads file from stdin; writes to stdout)"
 
 
-runCPP :: String -> IO String
-runCPP contents = CPP.runCpphs cppOpts "" contents
+runCPP :: Bool -> String -> IO String
+runCPP unlit contents = CPP.runCpphs cppOpts "" contents
   where
     cppOpts = CPP.defaultCpphsOptions { 
       CPP.defines = [("__GLASGOW_HASKELL__", "0"),
                      ("SIZEOF_HSWORD", "4"),
                      ("FLT_RADIX", "2"),
                      ("WORD_SIZE_IN_BITS", "32"),
-                     ("HAVE_KQUEUE", "1")], 
+                     ("HAVE_KQUEUE", "1"),
+                     ("CALLCONV", "ccall")], 
       CPP.boolopts = CPP.defaultBoolOptions { 
          CPP.hashline = False,
-         CPP.warnings = False
+         CPP.warnings = False,
+         CPP.literate = unlit
          } 
       }
               
     
 sub regex repl s = subRegex (mkRegex regex) s repl
   
--- Workaround bugs in haskell-src-exts
+
 fixBugsHack :: String -> String
-fixBugsHack = sub "\\(#" "(" .
-              sub "#\\)" ")" .
-              sub "0x[A-Fa-f0-9]+#" "0" .  
-              sub "SPECIALISE \\[[0-9]\\]" "SPECIALISE" .
-              sub "'\\\\x[A-Fa-f0-9]+'" "'k'"
+fixBugsHack = sub "\\(#" "(" . -- stupid bug in haskell-src-exts
+              sub "#\\)" ")" . -- stupid bug in haskell-src-exts
+              sub "0x[A-Fa-f0-9]+#" "0" .  -- stupid bug in haskell-src-exts
+              sub "SPECIALISE \\[[0-9]\\]" "SPECIALISE" . -- stupid bug in haskell-src-exts
+              sub "'\\\\x[A-Fa-f0-9]+'" "'k'" . -- stupid bug in haskell-src-exts
+              sub "^[A-Z0-9_]+\\(.*\\)$" "" -- try to guess cpp macros. this isn't even valid haskell syntax
 
 main :: IO ()
 main = do 
   files <- getArgs
   case files of 
     [path] -> do
-      contents <- getContents >>= runCPP
+      contents <- getContents   >>= runCPP (".lhs" `isSuffixOf` path)
       let contents' = fixBugsHack contents
       case createTags path contents' of 
         Left res -> putStrLn (elisp path res) >> exitSuccess
