@@ -9,7 +9,7 @@ Name:                hie
 Version:             0.1
 
 -- A short (one-line) description of the package.
-Synopsis:            Emacs Inline Haskell
+Synopsis:            Haskell In Emacs
 
 -- A longer description of the package.
 Description:         Type signatures, goto-definition, autocomplete in Emacs
@@ -50,7 +50,9 @@ Executable hie
   Main-is: hie.hs            
   
   -- Packages needed in order to build this package.
-  Build-depends: base, directory, containers, haskell-src-exts, fclabels, cpphs, regex-compat
+  Build-depends: base, directory, containers, fclabels, cpphs, regex-compat, pretty, syb, array
+
+  Other-modules: Language.Haskell.Exts.InternalParser
   
   -- Modules not exported by this package.
   -- Other-modules:       

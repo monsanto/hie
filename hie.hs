@@ -67,6 +67,7 @@ data Import = Import {
 $(mkLabels [''Ident, ''Tag, ''Import])              
 type Result = (String, [Import], [Export], Database)
 
+
 -- | Combine two databases.
 merge :: Database -> Database -> Database
 merge = Map.unionWith mergeTag
@@ -96,47 +97,34 @@ createTags file s =
     mode = L.ParseMode {
       L.parseFilename = "", -- we unlit before, so don't do it again.
       L.extensions = [
-        L.ForeignFunctionInterface
-        , L.UnliftedFFITypes
-        , L.GADTs
-        , L.ImplicitParams
-        , L.ScopedTypeVariables
-        , L.UnboxedTuples
-        , L.TypeSynonymInstances
-        , L.StandaloneDeriving
-        , L.DeriveDataTypeable
-        , L.FlexibleContexts
-        , L.FlexibleInstances
-        , L.ConstrainedClassMethods
-        , L.MultiParamTypeClasses
-        , L.FunctionalDependencies
-        , L.MagicHash
-        , L.PolymorphicComponents
-        , L.ExistentialQuantification
-        , L.UnicodeSyntax
-        , L.PostfixOperators
-        , L.PatternGuards
-        , L.LiberalTypeSynonyms
-        , L.RankNTypes
-        , L.ImpredicativeTypes
-        , L.TypeOperators
-        , L.RecursiveDo
-        , L.ParallelListComp
-        , L.EmptyDataDecls
-        , L.KindSignatures
-        , L.GeneralizedNewtypeDeriving
-        --, L.TypeFamilies
-        , L.TemplateHaskell
-        , L.PackageImports 
-        , L.NamedFieldPuns
-        , L.ViewPatterns 
-        , L.TupleSections
-        , L.QuasiQuotes 
-        ] ++ exts ++ 
-                     if L.UnknownExtension "NoBangPatterns" `elem` exts 
-                     then [] 
-                     else [L.BangPatterns]
-                       ,
+        L.PackageImports,
+        L.TypeFamilies,  -- uses family keyword
+        L.GADTs,
+        L.StandaloneDeriving,
+        L.TemplateHaskell,
+        L.FunctionalDependencies,
+        L.EmptyDataDecls,
+        L.ExistentialQuantification,
+        L.KindSignatures,
+        L.BangPatterns,    -- uses ! as a keyword
+        L.ScopedTypeVariables, 
+        L.ViewPatterns, 
+        L.NamedFieldPuns,
+        L.RecordWildCards,
+        L.ImplicitParams,         -- uses ? as a keyword, %keyword
+        L.UnboxedTuples,          -- uses (#, #) as a keyword 
+        L.MagicHash,     -- uses # as a keyword 
+        L.QuasiQuotes,
+        L.ExplicitForall,
+        --L.Arrows,    -- -< and -<<
+        L.UnicodeSyntax, 
+        L.RecursiveDo,    -- mdo
+        L.ForeignFunctionInterface,  -- foreign,
+        L.PatternGuards,
+        L.MultiParamTypeClasses,
+        L.TypeOperators,
+        L.TupleSections,
+        L.FlexibleContexts] ++ exts,
       L.ignoreLanguagePragmas = False,
       L.ignoreLinePragmas = False,
       L.fixities = Nothing 
@@ -360,7 +348,7 @@ extractClassDecl _ = Map.empty
 extractPat :: L.Pat Span -> Database
 extractPat (L.PVar _ name) = extractName name
 extractPat (L.PApp _ _ pats) = merges extractPat pats
-extractPat (L.PTuple _ pats) = merges extractPat pats
+extractPat (L.PTuple _ _ pats) = merges extractPat pats
 extractPat (L.PList _ pats) = merges extractPat pats
 extractPat (L.PParen _ pat) = extractPat pat
 extractPat (L.PAsPat _ name pat) = extractName name `merge` extractPat pat
@@ -488,13 +476,13 @@ runCPP unlit contents = CPP.runCpphs cppOpts "" contents
 sub regex repl s = subRegex (mkRegex regex) s repl
   
 
-fixBugsHack :: String -> String
-fixBugsHack = sub "\\(#" "(" . -- stupid bug in haskell-src-exts
-              sub "#\\)" ")" . -- stupid bug in haskell-src-exts
-              sub "0x[A-Fa-f0-9]+#" "0" .  -- stupid bug in haskell-src-exts
-              sub "SPECIALISE \\[[0-9]\\]" "SPECIALISE" . -- stupid bug in haskell-src-exts
-              sub "'\\\\x[A-Fa-f0-9]+'" "'k'" . -- stupid bug in haskell-src-exts
-              sub "^[A-Z0-9_]+\\(.*\\)$" "" -- try to guess cpp macros. this isn't even valid haskell syntax
+-- fixBugsHack :: String -> String
+-- fixBugsHack = sub "\\(# " "(" . -- stupid bug in haskell-src-exts 
+--               sub " #\\)" ")" . -- stupid bug in haskell-src-exts 
+--               sub "0x[A-Fa-f0-9]+#" "0" .  -- stupid bug in haskell-src-exts
+--               sub "SPECIALISE \\[[0-9]\\]" "SPECIALISE" . -- stupid bug in haskell-src-exts
+--               sub "'\\\\x[A-Fa-f0-9]+'" "'k'" . -- stupid bug in haskell-src-exts
+--               sub "^[A-Z0-9_]+\\(.*\\)$" "" -- try to guess cpp macros. this isn't even valid haskell syntax
 
 main :: IO ()
 main = do 
@@ -502,9 +490,11 @@ main = do
   case files of 
     [path] -> do
       contents <- getContents   >>= runCPP (".lhs" `isSuffixOf` path)
-      let contents' = fixBugsHack contents
-      case createTags path contents' of 
-        Left res -> putStrLn (elisp path res) >> exitSuccess
+      --let contents' = fixBugsHack contents
+      --putStrLn contents'
+      case createTags path contents of 
+        Left res -> putStrLn (elisp path res) >>
+          exitSuccess
         Right s -> hPutStrLn stderr s >> exitFailure
     _ -> usage
   

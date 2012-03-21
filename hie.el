@@ -28,6 +28,8 @@
 (defvar hie-update-interval 0.5
   "How long should you be idle before we update?")
 
+
+
 ;; (defvar hie-exclude-docs
 ;;   "What documentation should we *not* show? For instance, you /probably/ know the type signature of map and don't want it clouding your view..."
 ;;   )
@@ -66,14 +68,6 @@ If you DO edit this, you can clear all.")
 (defvar hie-all-buffers-import-defs-hash (hie-new-hash)
   "Map module name to (exports idents hash-table).")
 
-;; (defvar hie-all-buffers-exported-hash (hie-new-hash)
-;;   "As above, but from all of the open buffers. Editing hie-buffer-module means you have to update this hash.")
-
-;; (defvar hie-all-buffers-idents-hash (hie-new-hash)
-;;   "A hash table for all of the identifiers we care about from other open buffers in Emacs.
-
-;; Updating hie-buffer-idents-hash implies that you should update this hash.")
-
 ; all-buffers needs the two below
 (defvar hie-buffer-module-name nil)
 (make-variable-buffer-local 'hie-buffer-module-name)
@@ -88,9 +82,13 @@ If you DO edit this, you can clear all.")
 Updating this implies that you should update hie-buffer-idents-hash, but note that the local definitions in hie-buffer-module override this hash.")
 (make-variable-buffer-local 'hie-buffer-imports-hash)
 
-;; (defvar hie-buffer-exports-hash nil
-;;   "A set of exports. Updating this implies you should update hie-all-buffers-exported-modules-hash.")
-;; (make-local-variable 'hie-buffer-exports-hash)
+(defvar hie-buffer-module-sxhash nil
+  "This is here to avoid setting up and destroying over and over...")
+(make-variable-buffer-local 'hie-buffer-module-sxhash)
+
+(defvar hie-buffer-check nil)
+(make-variable-buffer-local 'hie-buffer-check)
+
 
 
 
@@ -319,12 +317,12 @@ Updating this implies that you should update hie-buffer-idents-hash, but note th
 
 (defun hie-try-idle-update ()
   "Try to update the current buffer when we're idle."
-  (when (and hie-mode (buffer-modified-p)) 
+  (when (and hie-mode hie-buffer-check) 
     (hie-setup-buffer)))
 
 (defun hie-try-save-update ()
   "Try to update the current buffer when we're idle."
-  (when hie-mode 
+  (when (and hie-mode) 
     (hie-setup-buffer)))
 
 ;
@@ -339,8 +337,12 @@ Updating this implies that you should update hie-buffer-idents-hash, but note th
 (defun hie-setup-buffer ()
   "Prepare the buffer for hie."
   (interactive)
-  (let ((mod (hie-run)))
-    (when mod
+  
+  (setq hie-buffer-check nil)
+  (let* ((mod (hie-run))
+	 (sx (sxhash mod)))
+    (when (and mod (not (eq hie-buffer-module-sxhash sx)))
+      (setq hie-buffer-module-sxhash sx)
       ;; local business
       (setq hie-buffer-idents-hash (hie-new-hash))
       (loop for import in (hiemod-imports mod)
@@ -393,6 +395,9 @@ Updating this implies that you should update hie-buffer-idents-hash, but note th
 
 ;
 
+(defun hie-allow-update (b e l)
+  (setq hie-buffer-check t))
+
 (defvar hie-idle-timer nil)
 
 (when hie-idle-timer
@@ -401,5 +406,6 @@ Updating this implies that you should update hie-buffer-idents-hash, but note th
 (setq hie-idle-timer (run-with-idle-timer hie-update-interval t 'hie-try-idle-update))
 
 (add-hook 'after-save-hook 'hie-try-save-update)
+(add-hook 'after-change-functions 'hie-allow-update)
 
 (provide 'hie)

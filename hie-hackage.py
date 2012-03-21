@@ -13,8 +13,8 @@ import re
 import subprocess
 
 def hie(f, inp):
-    k = subprocess.Popen(["hie", f], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
-    data = k.communicate(inp)[0]
+    k = subprocess.Popen(["hie", f], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    data = k.communicate(inp)
     return data
 
 directory = sys.argv[1]
@@ -29,6 +29,8 @@ def find_files(directory, pattern):
                 yield filename
 
 files = list(find_files(".", "*.hs")) + list(find_files(".", "*.lhs"))
+
+errs = []
 
 for f in files:
     path = os.path.abspath(f).replace(sources_directory, "%s/")
@@ -57,14 +59,17 @@ for f in files:
         data = h.read()
 
     with open(to, "w") as h:
-        print
-        print f
-        print "----------------------"
-        print
-    
-        h.write(hie(path, data))
-            
+        print "Processing", f
+        
+        (out, err) = hie(path, data)
+        if err:
+            errs.append((f, err))
+        h.write(out)
 
+if errs:
+    print "The following files had problems:"
+for (f, err) in errs:
+    print f, ":", err
 
 
 
