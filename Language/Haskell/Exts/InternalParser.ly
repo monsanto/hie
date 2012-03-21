@@ -157,6 +157,7 @@ Reserved operators
 >       '=>'    { Loc $$ DoubleArrow }
 >       '-'     { Loc $$ Minus }
 >       '!'     { Loc $$ Exclamation }
+>       '! '    { Loc $$ ExclamationSpace }
 >       '*'     { Loc $$ Star }
 
 Arrows
@@ -940,24 +941,28 @@ as qcon and then check separately that they are truly unqualified.
 >                                               return (c,map (\t -> UnBangedTy (ann t) t) ts,ann $1) } }
 >       | scontype1                     { $1 }
 
+CHRIS
+
+> excl : '!' { $1 } | '! ' { $1 }
+
 > scontype1 :: { (Name L, [BangType L],L) }
->       : btype '!' trueatype                       {% do { (c,ts) <- splitTyConApp $1;
+>       : btype excl trueatype                       {% do { (c,ts) <- splitTyConApp $1;
 >                                                           return (c,map (\t -> UnBangedTy (ann t) t) ts++
 >                                                                   [BangedTy (nIS $2 <++> ann $3 <** [$2]) $3], $1 <> $3) } }
->       | btype '{-# UNPACK' '#-}' '!' trueatype    {% do { (c,ts) <- splitTyConApp $1;
+>       | btype '{-# UNPACK' '#-}' excl trueatype    {% do { (c,ts) <- splitTyConApp $1;
 >                                                           return (c,map (\t -> UnBangedTy (ann t) t) ts++
 >                                                                   [UnpackedTy (nIS $2 <++> ann $5 <** [$2,$3,$4]) $5], $1 <> $5) } }
 >       | scontype1 satype              { let (n,ts,l) = $1 in (n, ts ++ [$2],l <++> ann $2) }
 
 > satype :: { BangType L }
 >       : trueatype                         { UnBangedTy (ann $1) $1 }
->       | '!' trueatype                     { BangedTy   (nIS $1 <++> ann $2 <** [$1]) $2 }
->       | '{-# UNPACK' '#-}' '!' trueatype  { UnpackedTy (nIS $1 <++> ann $4 <** [$1,$2,$3]) $4 }
+>       | excl trueatype                     { BangedTy   (nIS $1 <++> ann $2 <** [$1]) $2 }
+>       | '{-# UNPACK' '#-}' excl trueatype  { UnpackedTy (nIS $1 <++> ann $4 <** [$1,$2,$3]) $4 }
 
 > sbtype :: { BangType L }
 >       : truebtype                         { UnBangedTy (ann $1) $1 }
->       | '!' trueatype                     { BangedTy   (nIS $1 <++> ann $2 <** [$1]) $2 }
->       | '{-# UNPACK' '#-}' '!' trueatype  { UnpackedTy (nIS $1 <++> ann $4 <** [$1,$2,$3]) $4 }
+>       | excl trueatype                     { BangedTy   (nIS $1 <++> ann $2 <** [$1]) $2 }
+>       | '{-# UNPACK' '#-}' excl trueatype  { UnpackedTy (nIS $1 <++> ann $4 <** [$1,$2,$3]) $4 }
 
 > fielddecls :: { ([FieldDecl L],[S]) }
 >       : fielddecls ',' fielddecl      { ($3 : fst $1, $2 : snd $1) }
@@ -968,8 +973,8 @@ as qcon and then check separately that they are truly unqualified.
 
 > stype :: { BangType L }
 >       : truectype                         { UnBangedTy (ann $1) $1 }
->       | '!' trueatype                     { BangedTy   (nIS $1 <++> ann $2 <** [$1]) $2 }
->       | '{-# UNPACK' '#-}' '!' trueatype  { UnpackedTy (nIS $1 <++> ann $4 <** [$1,$2,$3]) $4 }
+>       | excl trueatype                     { BangedTy   (nIS $1 <++> ann $2 <** [$1]) $2 }
+>       | '{-# UNPACK' '#-}' excl trueatype  { UnpackedTy (nIS $1 <++> ann $4 <** [$1,$2,$3]) $4 }
 
 > deriving :: { Maybe (Deriving L) }
 >       : {- empty -}                   { Nothing }
@@ -996,7 +1001,7 @@ Kinds
 
 > akind :: { Kind L }
 >       : '*'                   { KindStar  (nIS $1) }
->       | '!'                   { KindBang  (nIS $1) }
+>       | excl                   { KindBang  (nIS $1) }
 >       | '(' kind1 ')'         { KindParen ($1 <^^> $3 <** [$1,$3]) $2 }
 
 > optkind :: { (Maybe (Kind L), [S]) }
@@ -1083,7 +1088,7 @@ Value definitions
 
 > valdef :: { Decl L }
 >       : exp0b optsig rhs optwhere     {% checkValDef (($1 <> $3 <+?> (fmap ann) (fst $4)) <** (snd $2 ++ snd $4)) $1 (fst $2) $3 (fst $4) }
->       | '!' aexp rhs optwhere         {% do { checkEnabled BangPatterns ;
+>       | excl aexp rhs optwhere         {% do { checkEnabled BangPatterns ;
 >                                               let { l = nIS $1 <++> ann $2 <** [$1] };
 >                                               p <- checkPattern (BangPat l $2);
 >                                               return $ PatBind (p <> $3 <+?> (fmap ann) (fst $4) <** snd $4)
@@ -1193,7 +1198,7 @@ mdo blocks require the RecursiveDo extension enabled, but the lexer handles that
 
 > apat :: { Pat L }
 >       : aexp                          {% checkPattern $1 }
->       | '!' aexp                      {% checkPattern (BangPat (nIS $1 <++> ann $2 <** [$1]) $2) }
+>       | excl aexp                      {% checkPattern (BangPat (nIS $1 <++> ann $2 <** [$1]) $2) }
 
 UGLY: Because patterns and expressions are mixed, aexp has to be split into
 two rules: One right-recursive and one left-recursive. Otherwise we get two
@@ -1492,7 +1497,7 @@ A guard can be a pattern guard if PatternGuards is enabled, hence quals instead 
 
 > pat :: { Pat L }
 >       : exp                           {% checkPattern $1 }
->       | '!' aexp                      {% checkPattern (BangPat (nIS $1 <++> ann $2 <** [$1]) $2) }
+>       | excl aexp                     {% checkPattern (BangPat (nIS $1 <++> ann $2 <** [$1]) $2) }
 -----------------------------------------------------------------------------
 Statement sequences
 
@@ -1676,14 +1681,18 @@ Implicit parameter
 >       : VARSYM                { let Loc l (VarSym v) = $1 in Symbol (nIS l) v }
 >       | '-'                   { minus_name (nIS $1) }
 >       | '!'                   { bang_name  (nIS $1) }
+>       | '! '                   { Symbol (nIS $1) "! " }
 >       | '.'                   { dot_name   (nIS $1) }
 >       | '*'                   { star_name  (nIS $1) }
+
 
 > varsymm :: { Name L } -- varsym not including '-'
 >       : VARSYM                { let Loc l (VarSym v) = $1 in Symbol (nIS l) v }
 >       | '!'                   { bang_name (nIS $1) }
+>       | '! '                   { Symbol (nIS $1) "! " }
 >       | '.'                   { dot_name  (nIS $1) }
 >       | '*'                   { star_name (nIS $1) }
+
 
 > qvarsym1 :: { QName L }
 >       : QVARSYM               { let {Loc l (QVarSym q) = $1; nis = nIS l} in Qual nis (ModuleName nis (fst q)) (Symbol nis (snd q)) }

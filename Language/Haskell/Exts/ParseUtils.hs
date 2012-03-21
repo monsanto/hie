@@ -61,20 +61,21 @@ module Language.Haskell.Exts.ParseUtils (
     , p_unboxed_singleton_con   -- PExp
     ) where
 
-import Language.Haskell.Exts.Annotated.Syntax hiding ( Type(..), Asst(..), Exp(..), FieldUpdate(..), XAttr(..), Context(..) )
+
+import           Language.Haskell.Exts.Annotated.Syntax hiding ( Type(..), Asst(..), Exp(..), FieldUpdate(..), XAttr(..), Context(..) )
 import qualified Language.Haskell.Exts.Annotated.Syntax as S ( Type(..), Asst(..), Exp(..), FieldUpdate(..), XAttr(..), Context(..) )
-import Language.Haskell.Exts.Annotated.Build
+import           Language.Haskell.Exts.Annotated.Build
 
-import Language.Haskell.Exts.ParseSyntax
-import Language.Haskell.Exts.ParseMonad
-import Language.Haskell.Exts.Pretty
-import Language.Haskell.Exts.SrcLoc
-import Language.Haskell.Exts.Extension
-import Language.Haskell.Exts.ExtScheme
+import           Language.Haskell.Exts.ParseSyntax
+import           Language.Haskell.Exts.ParseMonad
+import           Language.Haskell.Exts.Pretty
+import           Language.Haskell.Exts.SrcLoc
+import           Language.Haskell.Exts.Extension
+import           Language.Haskell.Exts.ExtScheme
 
-import Data.List (intersperse)
-import Data.Maybe (fromJust)
-import Control.Monad (when,liftM)
+import           Data.List                              (intersperse)
+import           Data.Maybe                             (fromJust)
+import           Control.Monad                          (when,liftM)
 
 --- import Debug.Trace (trace)
 
@@ -688,6 +689,10 @@ checkValDef l lhs optsig rhs whereBinds = do
 
 isFunLhs :: PExp L -> [PExp L] -> P (Maybe (Name L, [PExp L], Bool, [S]))
 isFunLhs (InfixApp ll l (QVarOp loc (UnQual _ op)) r) es
+-- CHRIS
+    | op =~= (Symbol () "! ") = 
+      case op of 
+        (Symbol pokemon _) -> return $ Just (Symbol pokemon "!", l:r:es, False, [])
     | op =~= (Symbol () "!") = do
         exts <- getExtensions
         if BangPatterns `elem` exts

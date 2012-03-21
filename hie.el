@@ -222,7 +222,7 @@ Updating this implies that you should update hie-buffer-idents-hash, but note th
 	   (t defs)))))))
 
 (defun hie-import-defs (import)
-  (or (hie-import-defs-nonlocal import) (hie-import-defs-local import)))
+  (or (hie-import-defs-local import) (hie-import-defs-nonlocal import)))
 
 (defun hie-fix-raw-import-defs (base-defs import)
   (let* ((defs (if (hieimport-is-hidden import)

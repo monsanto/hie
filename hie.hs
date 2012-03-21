@@ -215,8 +215,9 @@ addPrelude l | not $ any ((== "Prelude") . get impModule) l = Import "Prelude" [
 extractModule :: L.Module Span -> ((Int, Int), Result)
 extractModule (L.Module _ mh prags importdecls decls) = 
   case mh of
-    Just k@(L.ModuleHead loc (L.ModuleName _ s) _ exportspec) -> 
-      (extractLoc loc, 
+    -- note we grab the end line and column, not the normal beginning and end.
+    Just k@(L.ModuleHead (L.SrcSpanInfo (L.SrcSpan _ _ _ line column) _) (L.ModuleName _ s) _ exportspec) -> 
+      ((line, column), 
        (s, imports', 
         case concatMap extractExportSpec (maybe [] (\(L.ExportSpecList _ l) -> l) exportspec) of
           [] -> [ExpModule s]
@@ -476,20 +477,20 @@ runCPP unlit contents = CPP.runCpphs cppOpts "" contents
 sub regex repl s = subRegex (mkRegex regex) s repl
   
 
--- fixBugsHack :: String -> String
--- fixBugsHack = sub "\\(# " "(" . -- stupid bug in haskell-src-exts 
+fixBugsHack :: String -> String
+fixBugsHack = --sub "\\(# " "(" . -- stupid bug in haskell-src-exts 
 --               sub " #\\)" ")" . -- stupid bug in haskell-src-exts 
 --               sub "0x[A-Fa-f0-9]+#" "0" .  -- stupid bug in haskell-src-exts
 --               sub "SPECIALISE \\[[0-9]\\]" "SPECIALISE" . -- stupid bug in haskell-src-exts
 --               sub "'\\\\x[A-Fa-f0-9]+'" "'k'" . -- stupid bug in haskell-src-exts
---               sub "^[A-Z0-9_]+\\(.*\\)$" "" -- try to guess cpp macros. this isn't even valid haskell syntax
+                sub "^[A-Z0-9_]+\\(.*\\)[ \t]*$" "" -- try to guess cpp macros. this isn't even valid haskell syntax
 
 main :: IO ()
 main = do 
   files <- getArgs
   case files of 
     [path] -> do
-      contents <- getContents   >>= runCPP (".lhs" `isSuffixOf` path)
+      contents <- getContents   >>= runCPP (".lhs" `isSuffixOf` path) >>= (return . fixBugsHack)
       --let contents' = fixBugsHack contents
       --putStrLn contents'
       case createTags path contents of 

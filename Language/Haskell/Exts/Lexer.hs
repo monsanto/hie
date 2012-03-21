@@ -90,6 +90,7 @@ data Token
         | DoubleArrow
         | Minus
         | Exclamation
+        | ExclamationSpace -- CHRIS 
         | Star
         | LeftArrowTail         -- >-
         | RightArrowTail        -- -<
@@ -229,8 +230,8 @@ special_varops :: [(String,(Token, Maybe ExtScheme))]
 special_varops = [
  -- the dot is only a special symbol together with forall, but can still be used as function composition
  ( ".",  (Dot,          Just (Any [ExplicitForall, ExistentialQuantification])) ),
- ( "-",  (Minus,        Nothing) ),
- ( "!",  (Exclamation,  Nothing) )
+ ( "-",  (Minus,        Nothing) )
+ --, ( "!",  (Exclamation,  Nothing) )   -- CHRIS
  ]
 
 reserved_ids :: [(String,(Token, Maybe ExtScheme))]
@@ -692,17 +693,22 @@ lexStdToken = do
 
             | isHSymbol c -> do
                     sym <- lexWhile isHSymbol
-                    return $ case lookup sym (reserved_ops ++ special_varops) of
+                    case lookup sym (reserved_ops ++ special_varops) of
                               Just (t , scheme) ->
                                 -- check if an extension op is enabled
-                                if isEnabled scheme exts
+                                return $ if isEnabled scheme exts
                                  then t
                                  else case c of
                                         ':' -> ConSym sym
                                         _   -> VarSym sym
                               Nothing -> case c of
-                                          ':' -> ConSym sym
-                                          _   -> VarSym sym
+                                          ':' -> return $ ConSym sym
+                                          '!' -> 
+                                            do { i <- getInput ;
+                                               return $ case i of 
+                                                 ' ' : xs -> ExclamationSpace
+                                                 _ -> Exclamation }
+                                          _   -> return $ VarSym sym
 
             | otherwise -> do
                     discard 1
@@ -1207,6 +1213,7 @@ showToken t = case t of
   DoubleArrow       -> "=>"
   Minus             -> "-"
   Exclamation       -> "!"
+  ExclamationSpace  -> "!"
   Star              -> "*"
   LeftArrowTail     -> ">-"
   RightArrowTail    -> "-<"
