@@ -156,7 +156,7 @@ Updating this implies that you should update hie-buffer-idents-hash, but note th
 (defun hie-make-help (def) 
   (if (and (hiedef-signature def) (hiedef-help def))
       (concat (hiedef-signature def) "\n\n" (hiedef-help def))
-    (or (hiedef-signature def) (hiedef-help def))))
+    (or (hiedef-signature def) (hiedef-help def) "")))
 
 ;
 
