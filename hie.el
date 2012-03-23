@@ -100,14 +100,11 @@ If you DO edit this, you can clear all.")
 				'hie-read-ident-history)))
     (gethash name (hie-global-defshash))))
 
-(defun hie-jump (def)
-  (save-match-data
-    (if (string-match "^@\\(.+\\)" (hiedef-file def))
-	(set-buffer (match-string 1 (hiedef-file def)))
-      (find-file (hiedef-file def)))) 
-    (goto-char (point-min))
-    (forward-line (1- (hiedef-line def)))
-    (forward-char (1- (hiedef-column def))))
+(defun hie-jump (def) 
+  (find-file (hiedef-file def)) 
+  (goto-char (point-min))
+  (forward-line (1- (hiedef-line def)))
+  (forward-char (1- (hiedef-column def))))
 
 (defun hie-jump-to-definition ()
   "Jump to the given definition."
@@ -140,16 +137,18 @@ If you DO edit this, you can clear all.")
   (with-temp-file filename
     (insert (format "(setq *hie-load* %s)" (prin1-to-string mod)))))
 
+(defun hie-is-exportable-module (mod)
+  (not (member (hiemod-name mod) (list nil "Main"))))
+
 (defun hie-write-module (mod)
-  (when (not (member (hiemod-name mod) (list nil "Main")))
-    (hie-write-file (concat hie-modules-dir (hiemod-name mod)) mod)
-    ; Delete the cache stuff
-    (condition-case nil
-	(delete-file (concat hie-modules-cache-dir (hiemod-name mod)))
-      ('error nil))
-    (condition-case nil
-	(delete-file (concat hie-modules-cache-dir (hiemod-name mod) ".elc"))
-      ('error nil))))
+  (hie-write-file (concat hie-modules-dir (hiemod-name mod)) mod)
+					; Delete the cache stuff
+  (condition-case nil
+      (delete-file (concat hie-modules-cache-dir (hiemod-name mod)))
+    ('error nil))
+  (condition-case nil
+      (delete-file (concat hie-modules-cache-dir (hiemod-name mod) ".elc"))
+    ('error nil)))
 
 (defun hie-dump-defs (name defs)
   
@@ -169,7 +168,7 @@ If you DO edit this, you can clear all.")
      ((and (eq defs 'missing) (not (hieimport-alias import))) ; if we dont have the raw version, make it
       (let ((defs (hie-load-file (concat hie-modules-cache-dir name))))
 	(if defs
-	    (puthash (make-hieimport :name name) defs hie-import-defs-hash) 
+	    (puthash import defs hie-import-defs-hash) 
 	  (let ((mod (hie-load-file
 		      (concat hie-modules-dir name))))
 	    (if mod
@@ -182,8 +181,8 @@ If you DO edit this, you can clear all.")
 		    (puthash (make-hieimport :name name) defs hie-import-defs-hash)))
 	      (puthash (make-hieimport :name name) nil hie-import-defs-hash))))))
      ((eq defs 'missing) ; if this isn't the raw version, import the raw version and fix it
-      (let ((mod (hie-import-defs (make-hieimport :name name)))) 
-	(puthash import (if mod (hie-fix-raw-import-defs mod import) nil) hie-import-defs-hash)))
+      (let ((defs (hie-import-defs (make-hieimport :name name)))) 
+	(puthash import (if defs (hie-fix-raw-import-defs defs import) nil) hie-import-defs-hash)))
      (t defs))))
 
 (defun hie-fix-raw-import-defs (base-defs import)
@@ -251,25 +250,9 @@ If you DO edit this, you can clear all.")
 ; I'll make this "multithreaded" once I get lexically scoped variables... not everyone uses Emacs 24 I guess. :(
 (defun hie-run ()
   "Runs hie and loads the module it generates."
-  (let ((file1 (make-temp-file "hie"))
-	(file2 (make-temp-file "hie"))
-	(text (buffer-string))
-	(name (concat "@" (buffer-name))))
-    (with-temp-file file1
-      (insert text)) 
-    (call-process-shell-command (format "hie %s < %s > %s" name file1 file2))
-    (hie-load-file file2)))
-
-;; (defun hie-run ()
-;;   "Runs hie and loads the module it generates."
-;;   (let ((proc (start-process "hie" nil "hie" (buffer-name))))
-;;     (process-send-string proc (buffer-string))
-;;     (set-process-filter proc 'hie-proc-filter)
-;;     (set-process-sentinel proc 'hie-proc-sentinel)
-    
-;;     (hie-load-file file2)))
-
-
+  (let ((file (make-temp-file "hie")))
+    (call-process-region (point-min) (point-max) "hie" nil (list :file file) nil (buffer-file-name))
+    (hie-load-file file)))	    
 ;
 
 (defun hie-populate-defshash (defs defshash)
@@ -278,13 +261,13 @@ If you DO edit this, you can clear all.")
 (defun hie-setup-buffer ()
   "Prepare the buffer for hie."
   (interactive)
-  (setq hie-buffer-check nil)
   (let* ((mod (hie-run))
 	 (sx (sxhash mod)))
+    (setq hie-buffer-check nil)
     (when (and mod (not (eq hie-buffer-module-sxhash sx)))
       (setq hie-buffer-module-sxhash sx)
 
-      ;; local business
+;; local business
       (setq hie-buffer-idents-hash (hie-new-hash))
       (loop for import in (hiemod-imports mod)
 	    do (hie-populate-defshash (hie-import-defs import) hie-buffer-idents-hash))
@@ -293,18 +276,22 @@ If you DO edit this, you can clear all.")
       (setq hie-buffer-imports (loop for import in (hiemod-imports mod) collect (hieimport-name import)))
       
       ;; global business
-      (hie-write-module mod)
+     
+      mod)))
 
-      (loop for import being the hash-keys in hie-import-defs-hash
-	    do (when (equal (hieimport-name import) (hiemod-name mod))
-		 (remhash import hie-import-defs-hash)))
-
-      (loop for buffer in (buffer-list)
+(defun hie-save-buffer (mod)
+  (hie-write-module mod)
+  
+  (loop for buffer in (buffer-list)
 	    unless (equal buffer (current-buffer)) do
 	    (with-current-buffer buffer
 	      (when (and hie-mode (member (hiemod-name mod) hie-buffer-imports))
 		(setq hie-buffer-check t)
-		(setq hie-buffer-module-sxhash 0)))))))
+		(setq hie-buffer-module-sxhash 0))))
+      
+  (loop for import being the hash-keys in hie-import-defs-hash
+	do (when (equal (hieimport-name import) (hiemod-name mod))
+	     (remhash import hie-import-defs-hash))))
 
 ;; Autocomplete stuff
 
@@ -355,8 +342,10 @@ If you DO edit this, you can clear all.")
 
 (defun hie-try-save-update ()
   "Try to update the current buffer when we're idle."
-  (when (and hie-mode) 
-    (hie-setup-buffer)))
+  (when hie-mode 
+    (let ((mod (hie-setup-buffer)))
+      (when (and mod (hie-is-exportable-module mod))
+	(hie-save-buffer mod)))))
 
 (defun hie-allow-update (b e l)
   (setq hie-buffer-check t))

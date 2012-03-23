@@ -208,7 +208,7 @@ noPrelude = any (== "NoImplicitPrelude") . concat . mapMaybe (\x -> case x of
                                                         _ -> Nothing)
   
 addPrelude :: [Import] -> [Import]
-addPrelude l | not $ any ((== "Prelude") . get impModule) l = Import "Prelude" [] "Prelude" False False : l
+addPrelude l | not $ any ((== "Prelude") . get impModule) l = Import "Prelude" [] "Prelude" False True : l
              | otherwise = l
 
 -- | Re-exports, exported database, all database.
