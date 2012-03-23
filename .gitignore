@@ -1,0 +1,4 @@
+/.proj-files
+/dist/*
+/cabal-dev/*
+/Setup.hs

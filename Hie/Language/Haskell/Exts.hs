@@ -1,6 +1,6 @@
 -----------------------------------------------------------------------------
 -- |
--- Module      :  Language.Haskell.Exts
+-- Module      :  Hie.Language.Haskell.Exts
 -- Copyright   :  (c) Niklas Broberg 2004-2009
 -- License     :  BSD-style (see the file LICENSE.txt)
 --
@@ -13,15 +13,15 @@
 -- functionality for dealing directly with source files.
 --
 -----------------------------------------------------------------------------
-module Language.Haskell.Exts (
+module Hie.Language.Haskell.Exts (
     -- * Re-exported modules
-      module Language.Haskell.Exts.Syntax
-    , module Language.Haskell.Exts.Build
-    , module Language.Haskell.Exts.Parser
-    , module Language.Haskell.Exts.Pretty
-    , module Language.Haskell.Exts.Extension
-    , module Language.Haskell.Exts.Fixity
-    , module Language.Haskell.Exts.Comments
+      module Hie.Language.Haskell.Exts.Syntax
+    , module Hie.Language.Haskell.Exts.Build
+    , module Hie.Language.Haskell.Exts.Parser
+    , module Hie.Language.Haskell.Exts.Pretty
+    , module Hie.Language.Haskell.Exts.Extension
+    , module Hie.Language.Haskell.Exts.Fixity
+    , module Hie.Language.Haskell.Exts.Comments
     -- * Parsing of Haskell source files
     , parseFile
     , parseFileWithMode
@@ -35,13 +35,13 @@ module Language.Haskell.Exts (
     , readExtensions
     ) where
 
-import Language.Haskell.Exts.Build
-import Language.Haskell.Exts.Syntax
-import Language.Haskell.Exts.Parser
-import Language.Haskell.Exts.Pretty
-import Language.Haskell.Exts.Extension
-import Language.Haskell.Exts.Fixity
-import Language.Haskell.Exts.Comments
+import Hie.Language.Haskell.Exts.Build
+import Hie.Language.Haskell.Exts.Syntax
+import Hie.Language.Haskell.Exts.Parser
+import Hie.Language.Haskell.Exts.Pretty
+import Hie.Language.Haskell.Exts.Extension
+import Hie.Language.Haskell.Exts.Fixity
+import Hie.Language.Haskell.Exts.Comments
 
 import Data.List
 import Language.Preprocessor.Unlit

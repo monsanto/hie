@@ -1,6 +1,6 @@
 -----------------------------------------------------------------------------
 -- |
--- Module      :  Language.Haskell.Exts
+-- Module      :  Hie.Language.Haskell.Exts
 -- Copyright   :  (c) Niklas Broberg 2004-2009
 -- License     :  BSD-style (see the file LICENSE.txt)
 --
@@ -13,17 +13,17 @@
 -- functionality for dealing directly with source files.
 --
 -----------------------------------------------------------------------------
-module Language.Haskell.Exts.Annotated (
+module Hie.Language.Haskell.Exts.Annotated (
     -- * Re-exported modules
-      module Language.Haskell.Exts.Annotated.Syntax
-    , module Language.Haskell.Exts.Annotated.Build
-    , module Language.Haskell.Exts.Parser
-    , module Language.Haskell.Exts.Pretty
-    , module Language.Haskell.Exts.Annotated.Fixity
-    , module Language.Haskell.Exts.Annotated.ExactPrint
-    , module Language.Haskell.Exts.SrcLoc
-    , module Language.Haskell.Exts.Comments
-    , module Language.Haskell.Exts.Extension
+      module Hie.Language.Haskell.Exts.Annotated.Syntax
+    , module Hie.Language.Haskell.Exts.Annotated.Build
+    , module Hie.Language.Haskell.Exts.Parser
+    , module Hie.Language.Haskell.Exts.Pretty
+    , module Hie.Language.Haskell.Exts.Annotated.Fixity
+    , module Hie.Language.Haskell.Exts.Annotated.ExactPrint
+    , module Hie.Language.Haskell.Exts.SrcLoc
+    , module Hie.Language.Haskell.Exts.Comments
+    , module Hie.Language.Haskell.Exts.Extension
     -- * Parsing of Haskell source files
     , parseFile
     , parseFileWithMode
@@ -44,17 +44,17 @@ module Language.Haskell.Exts.Annotated (
     , readExtensions
     ) where
 
-import Language.Haskell.Exts.Annotated.Build
-import Language.Haskell.Exts.Annotated.Syntax
-import Language.Haskell.Exts.Parser ( Parseable(..), ParseResult(..), fromParseResult, ParseMode(..), defaultParseMode )
-import Language.Haskell.Exts.Pretty
-import Language.Haskell.Exts.Annotated.Fixity
-import Language.Haskell.Exts.Annotated.ExactPrint
-import Language.Haskell.Exts.SrcLoc
-import Language.Haskell.Exts.Extension
-import Language.Haskell.Exts.Comments
+import Hie.Language.Haskell.Exts.Annotated.Build
+import Hie.Language.Haskell.Exts.Annotated.Syntax
+import Hie.Language.Haskell.Exts.Parser ( Parseable(..), ParseResult(..), fromParseResult, ParseMode(..), defaultParseMode )
+import Hie.Language.Haskell.Exts.Pretty
+import Hie.Language.Haskell.Exts.Annotated.Fixity
+import Hie.Language.Haskell.Exts.Annotated.ExactPrint
+import Hie.Language.Haskell.Exts.SrcLoc
+import Hie.Language.Haskell.Exts.Extension
+import Hie.Language.Haskell.Exts.Comments
 
-import Language.Haskell.Exts.InternalParser
+import Hie.Language.Haskell.Exts.InternalParser
 
 import Data.List
 import Language.Preprocessor.Unlit

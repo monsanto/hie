@@ -1,7 +1,7 @@
 {-# LANGUAGE CPP, DeriveDataTypeable #-}
 -----------------------------------------------------------------------------
 -- |
--- Module      :  Language.Haskell.Exts.Fixity
+-- Module      :  Hie.Language.Haskell.Exts.Fixity
 -- Copyright   :  (c) Niklas Broberg 2009
 -- License     :  BSD-style (see the file LICENSE.txt)
 --
@@ -13,7 +13,7 @@
 -- be parsed properly.
 --
 -----------------------------------------------------------------------------
-module Language.Haskell.Exts.Fixity
+module Hie.Language.Haskell.Exts.Fixity
     (
     -- * Fixity representation
       Fixity(..)
@@ -34,7 +34,7 @@ module Language.Haskell.Exts.Fixity
     , AppFixity(..)
     ) where
 
-import Language.Haskell.Exts.Syntax
+import Hie.Language.Haskell.Exts.Syntax
 
 import Data.Char (isUpper)
 import Control.Monad (when, (<=<), liftM, liftM2, liftM3, liftM4)

@@ -1,6 +1,6 @@
 -----------------------------------------------------------------------------
 -- |
--- Module      :  Language.Haskell.Exts.Build
+-- Module      :  Hie.Language.Haskell.Exts.Annotated.Build
 -- Copyright   :  (c) The GHC Team, 1997-2000,
 --                (c) Niklas Broberg 2004
 -- License     :  BSD-style (see the file LICENSE.txt)
@@ -17,7 +17,7 @@
 --
 -----------------------------------------------------------------------------
 
-module Language.Haskell.Exts.Build (
+module Hie.Language.Haskell.Exts.Annotated.Build (
 
     -- * Syntax building functions
     name,       -- :: String -> Name
@@ -70,221 +70,221 @@ module Language.Haskell.Exts.Build (
     metaConPat      -- :: String -> [Pat] -> Pat
   ) where
 
-import Language.Haskell.Exts.Syntax
+import Hie.Language.Haskell.Exts.Annotated.Syntax
 
 -----------------------------------------------------------------------------
 -- Help functions for Abstract syntax
 
 -- | An identifier with the given string as its name.
 --   The string should be a valid Haskell identifier.
-name :: String -> Name
+name :: l -> String -> Name l
 name = Ident
 
 -- | A symbol identifier. The string should be a valid
 --   Haskell symbol identifier.
-sym :: String -> Name
+sym :: l -> String -> Name l
 sym = Symbol
 
 -- | A local variable as expression.
-var :: Name -> Exp
-var = Var . UnQual
+var :: l -> Name l -> Exp l
+var l = Var l . UnQual l
 
 -- | Use the given identifier as an operator.
-op :: Name -> QOp
-op = QVarOp . UnQual
+op :: l -> Name l -> QOp l
+op l = QVarOp l . UnQual l
 
 -- | A qualified variable as expression.
-qvar :: ModuleName -> Name -> Exp
-qvar m n = Var $ Qual m n
+qvar :: l -> ModuleName l -> Name l -> Exp l
+qvar l m = Var l . Qual l m
 
 -- | A pattern variable.
-pvar :: Name -> Pat
+pvar :: l -> Name l -> Pat l
 pvar = PVar
 
 -- | Application of expressions by juxtaposition.
-app :: Exp -> Exp -> Exp
+app :: l -> Exp l -> Exp l -> Exp l
 app = App
 
 -- | Apply an operator infix.
-infixApp :: Exp -> QOp -> Exp -> Exp
+infixApp :: l -> Exp l -> QOp l -> Exp l -> Exp l
 infixApp = InfixApp
 
 -- | Apply a function to a list of arguments.
-appFun :: Exp -> [Exp] -> Exp
-appFun f [] = f
-appFun f (a:as) = appFun (app f a) as
+appFun :: [l] -> Exp l -> [Exp l] -> Exp l
+appFun _ f [] = f
+appFun (l:ls) f (a:as) = appFun ls (app l f a) as
 
 -- | A constructor pattern, with argument patterns.
-pApp :: Name -> [Pat] -> Pat
-pApp n ps = PApp (UnQual n) ps
+pApp :: l -> Name l -> [Pat l] -> Pat l
+pApp l n = PApp l (UnQual l n)
 
 -- | A tuple expression.
-tuple :: [Exp] -> Exp
-tuple = Tuple Boxed
+tuple :: l -> [Exp l] -> Exp l
+tuple = flip Tuple Boxed
 
 -- | A tuple pattern.
-pTuple :: [Pat] -> Pat
-pTuple = PTuple Boxed
+pTuple :: l -> [Pat l] -> Pat l
+pTuple = flip PTuple Boxed
 
 -- | A tuple expression consisting of variables only.
-varTuple :: [Name] -> Exp
-varTuple ns = tuple $ map var ns
+varTuple :: l -> [Name l] -> Exp l
+varTuple l ns = tuple l $ map (var l) ns
 
 -- | A tuple pattern consisting of variables only.
-pvarTuple :: [Name] -> Pat
-pvarTuple ns = pTuple $ map pvar ns
+pvarTuple :: l -> [Name l] -> Pat l
+pvarTuple l ns = pTuple l $ map (pvar l) ns
 
 -- | A function with a given name.
-function :: String -> Exp
-function = var . Ident
+function :: l -> String -> Exp l
+function l = var l . Ident l
 
 -- | A literal string expression.
-strE :: String -> Exp
-strE = Lit . String
+strE :: l -> String -> Exp l
+strE l s = Lit l $ String l s s
 
 -- | A literal character expression.
-charE :: Char -> Exp
-charE = Lit . Char
+charE :: l -> Char -> Exp l
+charE l c = Lit l $ Char l c [c]
 
 -- | A literal integer expression.
-intE :: Integer -> Exp
-intE = Lit . Int
+intE :: l -> Integer -> Exp l
+intE l i = Lit l $ Int l i (show i)
 
 -- | A literal string pattern.
-strP :: String -> Pat
-strP = PLit . String
+strP :: l -> String -> Pat l
+strP l s = PLit l $ String l s s
 
 -- | A literal character pattern.
-charP :: Char -> Pat
-charP = PLit . Char
+charP :: l -> Char -> Pat l
+charP l c = PLit l $ Char l c [c]
 
 -- | A literal integer pattern.
-intP :: Integer -> Pat
-intP = PLit . Int
+intP :: l -> Integer -> Pat l
+intP l i = PLit l $ Int l i (show i)
 
 -- | A do block formed by the given statements.
 --   The last statement in the list should be
 --   a 'Qualifier' expression.
-doE :: [Stmt] -> Exp
+doE :: l -> [Stmt l] -> Exp l
 doE = Do
 
 -- | Lambda abstraction, given a list of argument
 --   patterns and an expression body.
-lamE :: SrcLoc -> [Pat] -> Exp -> Exp
+lamE :: l -> [Pat l] -> Exp l -> Exp l
 lamE = Lambda
 
 -- | A @let@ ... @in@ block.
-letE :: [Decl] -> Exp -> Exp
-letE ds e = Let (binds ds) e
+letE :: l -> [Decl l] -> Exp l -> Exp l
+letE l ds e = Let l (binds l ds) e
 
 -- | A @case@ expression.
-caseE :: Exp -> [Alt] -> Exp
+caseE :: l -> Exp l -> [Alt l] -> Exp l
 caseE = Case
 
 -- | An unguarded alternative in a @case@ expression.
-alt :: SrcLoc -> Pat -> Exp -> Alt
-alt s p e = Alt s p (unGAlt e) noBinds
+alt :: l -> Pat l -> Exp l -> Alt l
+alt l p e = Alt l p (unGAlt l e) Nothing
 
 -- | An alternative with a single guard in a @case@ expression.
-altGW :: SrcLoc -> Pat -> [Stmt] -> Exp -> Binds -> Alt
-altGW s p gs e w = Alt s p (gAlt s gs e) w
+altGW :: l -> Pat l -> [Stmt l] -> Exp l -> Binds l -> Alt l
+altGW l p gs e w = Alt l p (gAlt l gs e) (Just w)
 
 -- | An unguarded righthand side of a @case@ alternative.
-unGAlt :: Exp -> GuardedAlts
+unGAlt :: l -> Exp l -> GuardedAlts l
 unGAlt = UnGuardedAlt
 
 -- | An list of guarded righthand sides for a @case@ alternative.
-gAlts :: SrcLoc -> [([Stmt],Exp)] -> GuardedAlts
-gAlts s as = GuardedAlts $ map (\(gs,e) -> GuardedAlt s gs e) as
+gAlts :: l -> [([Stmt l], Exp l)] -> GuardedAlts l
+gAlts l as = GuardedAlts l $ map (\(gs,e) -> GuardedAlt l gs e) as
 
 -- | A single guarded righthand side for a @case@ alternative.
-gAlt :: SrcLoc -> [Stmt] -> Exp -> GuardedAlts
-gAlt s gs e = gAlts s [(gs,e)]
+gAlt :: l -> [Stmt l] -> Exp l -> GuardedAlts l
+gAlt l gs e = gAlts l [(gs,e)]
 
 -- | A list expression.
-listE :: [Exp] -> Exp
+listE :: l -> [Exp l] -> Exp l
 listE = List
 
 -- | The empty list expression.
-eList :: Exp
-eList = List []
+eList :: l -> Exp l
+eList l = List l []
 
 -- | The empty list pattern.
-peList :: Pat
-peList = PList []
+peList :: l -> Pat l
+peList l = PList l []
 
 -- | Put parentheses around an expression.
-paren :: Exp -> Exp
+paren :: l -> Exp l -> Exp l
 paren = Paren
 
 -- | Put parentheses around a pattern.
-pParen :: Pat -> Pat
+pParen :: l -> Pat l -> Pat l
 pParen = PParen
 
 -- | A qualifier expression statement.
-qualStmt :: Exp -> Stmt
+qualStmt :: l -> Exp l -> Stmt l
 qualStmt = Qualifier
 
 -- | A generator statement: /pat/ @<-@ /exp/
-genStmt :: SrcLoc -> Pat -> Exp -> Stmt
+genStmt :: l -> Pat l -> Exp l -> Stmt l
 genStmt = Generator
 
 -- | A @let@ binding group as a statement.
-letStmt :: [Decl] -> Stmt
-letStmt ds = LetStmt $ binds ds
+letStmt :: l -> [Decl l] -> Stmt l
+letStmt l ds = LetStmt l $ binds l ds
 
 -- | Hoist a set of declarations to a binding group.
-binds :: [Decl] -> Binds
+binds :: l -> [Decl l] -> Binds l
 binds = BDecls
 
 -- | An empty binding group.
-noBinds :: Binds
-noBinds = binds []
+noBinds :: l -> Binds l
+noBinds l = binds l []
 
 -- | The wildcard pattern: @_@
-wildcard :: Pat
+wildcard :: l -> Pat l
 wildcard = PWildCard
 
 -- | Generate k names by appending numbers 1 through k to a given string.
-genNames :: String -> Int -> [Name]
-genNames s k = [ Ident $ s ++ show i | i <- [1..k] ]
+genNames :: l -> String -> Int -> [Name l]
+genNames l s k = [ Ident l $ s ++ show i | i <- [1..k] ]
 
 -------------------------------------------------------------------------------
 -- Some more specialised help functions
 
 -- | A function with a single clause
-sfun :: SrcLoc -> Name -> [Name] -> Rhs -> Binds -> Decl
-sfun s f pvs rhs bs = FunBind [Match s f (map pvar pvs) Nothing rhs bs]
+sfun :: l -> Name l -> [Name l] -> Rhs l -> Maybe (Binds l) -> Decl l
+sfun l f pvs rhs mbs = FunBind l [Match l f (map (pvar l) pvs) rhs mbs]
 
 -- | A function with a single clause, a single argument, no guards
 -- and no where declarations
-simpleFun :: SrcLoc -> Name -> Name -> Exp -> Decl
-simpleFun s f a e = let rhs = UnGuardedRhs e
-             in sfun s f [a] rhs noBinds
+simpleFun :: l -> Name l -> Name l -> Exp l -> Decl l
+simpleFun l f a e = let rhs = UnGuardedRhs l e
+             in sfun l f [a] rhs Nothing
 
 -- | A pattern bind where the pattern is a variable, and where
 -- there are no guards and no 'where' clause.
-patBind :: SrcLoc -> Pat -> Exp -> Decl
-patBind s p e = let rhs = UnGuardedRhs e
-         in PatBind s p Nothing rhs noBinds
+patBind :: l -> Pat l -> Exp l -> Decl l
+patBind l p e = let rhs = UnGuardedRhs l e
+         in PatBind l p Nothing rhs Nothing
 
 -- | A pattern bind where the pattern is a variable, and where
 -- there are no guards, but with a 'where' clause.
-patBindWhere :: SrcLoc -> Pat -> Exp -> [Decl] -> Decl
-patBindWhere s p e ds = let rhs = UnGuardedRhs e
-             in PatBind s p Nothing rhs (binds ds)
+patBindWhere :: l -> Pat l -> Exp l -> [Decl l] -> Decl l
+patBindWhere l p e ds = let rhs = UnGuardedRhs l e
+             in PatBind l p Nothing rhs (Just $ binds l ds)
 
 -- | Bind an identifier to an expression.
-nameBind :: SrcLoc -> Name -> Exp -> Decl
-nameBind s n e = patBind s (pvar n) e
+nameBind :: l -> Name l -> Exp l -> Decl l
+nameBind l n e = patBind l (pvar l n) e
 
 -- | Apply function of a given name to a list of arguments.
-metaFunction :: String -> [Exp] -> Exp
-metaFunction s es = mf s (reverse es)
-  where mf s []     = var $ name s
-        mf s (e:es) = app (mf s es) e
+metaFunction :: l -> String -> [Exp l] -> Exp l
+metaFunction l s es = mf l s (reverse es)
+  where mf l s []     = var l $ name l s
+        mf l s (e:es) = app l (mf l s es) e
 
 -- | Apply a constructor of a given name to a list of pattern
 --   arguments, forming a constructor pattern.
-metaConPat :: String -> [Pat] -> Pat
-metaConPat s ps = pApp (name s) ps
+metaConPat :: l -> String -> [Pat l] -> Pat l
+metaConPat l s ps = pApp l (name l s) ps

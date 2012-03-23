@@ -1,7 +1,7 @@
 {-# OPTIONS_HADDOCK hide #-}
 -----------------------------------------------------------------------------
 -- |
--- Module      :  Language.Haskell.Exts.Annotated.ParseMonad
+-- Module      :  Hie.Language.Haskell.Exts.Annotated.ParseMonad
 -- Copyright   :  Niklas Broberg (c) 2004-2009,
 --                Original (c) The GHC Team, 1997-2000
 -- License     :  BSD-style (see the file libraries/base/LICENSE)
@@ -14,7 +14,7 @@
 --
 -----------------------------------------------------------------------------
 
-module Language.Haskell.Exts.ParseMonad(
+module Hie.Language.Haskell.Exts.ParseMonad(
         -- * Parsing
         P, ParseResult(..), atSrcLoc, LexContext(..),
         ParseMode(..), defaultParseMode, fromParseResult,
@@ -33,10 +33,10 @@ module Language.Haskell.Exts.ParseMonad(
         getModuleName
     ) where
 
-import Language.Haskell.Exts.SrcLoc(SrcLoc(..))
-import Language.Haskell.Exts.Fixity (Fixity, preludeFixities)
-import Language.Haskell.Exts.Comments
-import Language.Haskell.Exts.Extension (Extension, impliesExts)
+import Hie.Language.Haskell.Exts.SrcLoc(SrcLoc(..))
+import Hie.Language.Haskell.Exts.Fixity (Fixity, preludeFixities)
+import Hie.Language.Haskell.Exts.Comments
+import Hie.Language.Haskell.Exts.Extension (Extension, impliesExts)
 
 import Data.List ( intersperse )
 import Control.Applicative
@@ -101,10 +101,10 @@ indentOfParseState (Layout n:_,_,_,_) = n
 indentOfParseState _                  = 0
 
 -- | Static parameters governing a parse.
---   Note that the various parse functions in "Language.Haskell.Exts.Parser"
+--   Note that the various parse functions in "Hie.Language.Haskell.Exts.Parser"
 --   never look at LANGUAGE pragmas, regardless of
 --   what the @ignoreLanguagePragmas@ flag is set to.
---   Only the various @parseFile@ functions in "Language.Haskell.Exts" will
+--   Only the various @parseFile@ functions in "Hie.Language.Haskell.Exts" will
 --   act on it, when set to 'False'.
 
 data ParseMode = ParseMode {

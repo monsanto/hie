@@ -1,7 +1,7 @@
 {-# LANGUAGE CPP, DeriveDataTypeable #-}
 -----------------------------------------------------------------------------
 -- |
--- Module      :  Language.Haskell.Exts.SrcLoc
+-- Module      :  Hie.Language.Haskell.Exts.SrcLoc
 -- Copyright   :  (c) Niklas Broberg 2009
 -- License     :  BSD-style (see the file LICENSE.txt)
 --
@@ -13,7 +13,7 @@
 -- information, of varying degree of preciseness.
 --
 -----------------------------------------------------------------------------
-module Language.Haskell.Exts.SrcLoc where
+module Hie.Language.Haskell.Exts.SrcLoc where
 
 #ifdef __GLASGOW_HASKELL__
 #ifdef BASE4

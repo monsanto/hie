@@ -2,7 +2,7 @@
 > {-# OPTIONS_HADDOCK hide #-}
 > -----------------------------------------------------------------------------
 > -- |
-> -- Module      :  Language.Haskell.Exts.Annotated.Parser
+> -- Module      :  Hie.Language.Haskell.Exts.Annotated.Parser
 > -- Copyright   :  (c) Niklas Broberg 2004-2009,
 > --                Original (c) Simon Marlow, Sven Panne 1997-2000
 > -- License     :  BSD-style (see the file LICENSE.txt)
@@ -14,7 +14,7 @@
 > --
 > -----------------------------------------------------------------------------
 >
-> module Language.Haskell.Exts.InternalParser (
+> module Hie.Language.Haskell.Exts.InternalParser (
 >               -- * General parsing
 >               ParseMode(..), defaultParseMode, ParseResult(..), fromParseResult,
 >               -- * Parsing of specific AST elements
@@ -36,15 +36,15 @@
 >               getTopPragmas
 >               ) where
 >
-> import Language.Haskell.Exts.Annotated.Syntax hiding ( Type(..), Exp(..), Asst(..), XAttr(..), FieldUpdate(..) )
-> import Language.Haskell.Exts.Annotated.Syntax ( Type, Exp, Asst )
-> import Language.Haskell.Exts.ParseMonad
-> import Language.Haskell.Exts.Lexer
-> import Language.Haskell.Exts.ParseUtils
-> import Language.Haskell.Exts.Annotated.Fixity
-> import Language.Haskell.Exts.SrcLoc
-> import Language.Haskell.Exts.Comments ( Comment )
-> import Language.Haskell.Exts.Extension
+> import Hie.Language.Haskell.Exts.Annotated.Syntax hiding ( Type(..), Exp(..), Asst(..), XAttr(..), FieldUpdate(..) )
+> import Hie.Language.Haskell.Exts.Annotated.Syntax ( Type, Exp, Asst )
+> import Hie.Language.Haskell.Exts.ParseMonad
+> import Hie.Language.Haskell.Exts.Lexer
+> import Hie.Language.Haskell.Exts.ParseUtils
+> import Hie.Language.Haskell.Exts.Annotated.Fixity
+> import Hie.Language.Haskell.Exts.SrcLoc
+> import Hie.Language.Haskell.Exts.Comments ( Comment )
+> import Hie.Language.Haskell.Exts.Extension
 
 > import Control.Monad ( liftM, (<=<) )
 import Debug.Trace (trace)

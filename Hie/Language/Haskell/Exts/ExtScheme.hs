@@ -1,7 +1,7 @@
 {-# OPTIONS_HADDOCK hide #-}
 -----------------------------------------------------------------------------
 -- |
--- Module      :  Language.Haskell.Exts.ExtScheme
+-- Module      :  Hie.Language.Haskell.Exts.ExtScheme
 -- Copyright   :  (c) Niklas Broberg 2009
 -- License     :  BSD-style (see the file LICENSE.txt)
 --
@@ -13,9 +13,9 @@
 -- convenient fashion.
 --
 -----------------------------------------------------------------------------
-module Language.Haskell.Exts.ExtScheme where
+module Hie.Language.Haskell.Exts.ExtScheme where
 
-import Language.Haskell.Exts.Extension
+import Hie.Language.Haskell.Exts.Extension
 
 data ExtScheme = Any [Extension] | All [Extension]
   deriving (Eq,Show)

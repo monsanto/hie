@@ -1,6 +1,6 @@
 -----------------------------------------------------------------------------
 -- |
--- Module      :  Language.Haskell.Exts.Annotated.Simplify
+-- Module      :  Hie.Language.Haskell.Exts.Annotated.Simplify
 -- Copyright   :  (c) Niklas Broberg 2009
 -- License     :  BSD-style (see the file LICENSE.txt)
 --
@@ -9,8 +9,8 @@
 -- Portability :  portable
 --
 -- This module contains code for translating from the annotated
--- complex AST in Language.Haskell.Exts.Annotated.Syntax
--- to the simpler, sparsely annotated AST in Language.Haskell.Exts.Syntax.
+-- complex AST in Hie.Language.Haskell.Exts.Annotated.Syntax
+-- to the simpler, sparsely annotated AST in Hie.Language.Haskell.Exts.Syntax.
 -- 
 -- A function @sXYZ@ translates an annotated AST node of type @XYZ l@ into
 -- a simple AST node of type @XYZ@. I would have prefered to use a MPTC
@@ -18,12 +18,12 @@
 -- I wish to stay Haskell 2010 compliant. Let's hope for Haskell 2011.
 -- 
 -----------------------------------------------------------------------------
-module Language.Haskell.Exts.Annotated.Simplify where
+module Hie.Language.Haskell.Exts.Annotated.Simplify where
 
-import Language.Haskell.Exts.Annotated.Syntax
-import qualified Language.Haskell.Exts.Syntax as S
+import Hie.Language.Haskell.Exts.Annotated.Syntax
+import qualified Hie.Language.Haskell.Exts.Syntax as S
 
-import Language.Haskell.Exts.SrcLoc
+import Hie.Language.Haskell.Exts.SrcLoc
 
 -- | Translate an annotated AST node representing a Haskell module, into
 --   a simpler version that retains (almost) only abstract information.

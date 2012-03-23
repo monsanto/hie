@@ -1,6 +1,6 @@
 -----------------------------------------------------------------------------
 -- |
--- Module      :  Language.Haskell.Exts.Annotated.ExactPrint
+-- Module      :  Hie.Language.Haskell.Exts.Annotated.ExactPrint
 -- Copyright   :  (c) Niklas Broberg 2009
 -- License     :  BSD-style (see the file LICENSE.txt)
 --
@@ -13,14 +13,14 @@
 -- printing the tree exactly as it was parsed.
 --
 -----------------------------------------------------------------------------
-module Language.Haskell.Exts.Annotated.ExactPrint
+module Hie.Language.Haskell.Exts.Annotated.ExactPrint
         ( exactPrint
         , ExactP
         ) where
 
-import Language.Haskell.Exts.Annotated.Syntax
-import Language.Haskell.Exts.SrcLoc
-import Language.Haskell.Exts.Comments
+import Hie.Language.Haskell.Exts.Annotated.Syntax
+import Hie.Language.Haskell.Exts.SrcLoc
+import Hie.Language.Haskell.Exts.Comments
 
 import Control.Monad (when)
 import Control.Arrow ((***), (&&&))

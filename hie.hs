@@ -3,8 +3,10 @@
 
 -- | I, Chris Monsanto <chris@monsan.to>, wrote this code. It's under GPLv3.
 
-import qualified Language.Haskell.Exts.Annotated as L
-import qualified Language.Haskell.Exts.Pretty    as Pretty
+module Main where
+
+import qualified Hie.Language.Haskell.Exts.Annotated as L
+import qualified Hie.Language.Haskell.Exts.Pretty    as Pretty
 import qualified Language.Preprocessor.Cpphs     as CPP
 import qualified Data.Map                        as Map
 
@@ -22,9 +24,6 @@ import           System.Directory
 import           Control.Monad
 import System.Exit
 import Text.Regex
-
-
-
 
 -- Tags ------------------------------------------------------------------------
 
@@ -44,6 +43,7 @@ data Tag = Tag {
   _tagSignature :: Maybe String,  -- ^Tell me about this object.
   _tagQuickHelp :: Maybe String   -- ^... in English, please...
   } deriving Show
+
              
 newIdent s = Ident s NotInstance 
 newTag loc = Tag loc Nothing Nothing Nothing

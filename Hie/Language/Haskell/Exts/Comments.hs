@@ -1,7 +1,7 @@
 {-# LANGUAGE CPP, DeriveDataTypeable #-}
-module Language.Haskell.Exts.Comments where
+module Hie.Language.Haskell.Exts.Comments where
 
-import Language.Haskell.Exts.SrcLoc
+import Hie.Language.Haskell.Exts.SrcLoc
 
 #ifdef __GLASGOW_HASKELL__
 #ifdef BASE4

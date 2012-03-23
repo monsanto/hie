@@ -19,41 +19,24 @@
 (defvar hie-modules-dir "~/.hie/"
   "Where should we look for global definitions?")
 
-(defvar hie-sources-dir "~/.hie-src/"
-  "Where are the sources located?")
-
 (defvar hie-modules-cache-dir "~/.hie-cache/"
   "Where should we cache stuff?")
 
 (defvar hie-update-interval 0.5
   "How long should you be idle before we update?")
 
-
-
-;; (defvar hie-exclude-docs
-;;   "What documentation should we *not* show? For instance, you /probably/ know the type signature of map and don't want it clouding your view..."
-;;   )
-
-;
-; We keep a variety of hash tables.
-; First, there is a hash table of globally available identifiers.
-; Second, there is a hash table of identifiers pulled from the buffers imports.
-; Third, there is a hash table of identifiers pulled from the buffer itself.
 ;
 
 (defvar hie-mode-map
   (let ((map (make-keymap)))
-    (define-key map (kbd "C-c C-h") 'hie-show-signature)
-    (define-key map (kbd "C-c C-j") 'hie-jump-to-definition)
+    (define-key map (kbd "C-c h") 'hie-show-signature)
+    (define-key map (kbd "C-c j") 'hie-jump-to-definition)
     map)
   "hie-mode keymap")
 
 (define-minor-mode hie-mode "Toggle hie mode." nil " hie" hie-mode-map
-  (hie-buffer-very-first-setup)
   (hie-setup-buffer))
 
-;
-; The cache. These are generally modified by hie-incorporate.
 ;
 
 (defun hie-new-hash ()
@@ -65,32 +48,20 @@
 
 If you DO edit this, you can clear all.")
 
-(defvar hie-all-buffers-import-defs-hash (hie-new-hash)
-  "Map module name to (exports idents hash-table).")
-
-; all-buffers needs the two below
-(defvar hie-buffer-module-name nil)
-(make-variable-buffer-local 'hie-buffer-module-name)
-
 (defvar hie-buffer-idents-hash nil
   "A hash table mapping local identifiers to hiedefs.")
 (make-variable-buffer-local 'hie-buffer-idents-hash)
-
-(defvar hie-buffer-imports-hash
-  "A hash table mapping hieimports to restricted/renamed definitions.
-
-Updating this implies that you should update hie-buffer-idents-hash, but note that the local definitions in hie-buffer-module override this hash.")
-(make-variable-buffer-local 'hie-buffer-imports-hash)
 
 (defvar hie-buffer-module-sxhash nil
   "This is here to avoid setting up and destroying over and over...")
 (make-variable-buffer-local 'hie-buffer-module-sxhash)
 
+(defvar hie-buffer-imports nil
+  "This is here to avoid setting up and destroying over and over...")
+(make-variable-buffer-local 'hie-buffer-imports)
+
 (defvar hie-buffer-check nil)
 (make-variable-buffer-local 'hie-buffer-check)
-
-
-
 
 ;
 ; Structures
@@ -102,9 +73,6 @@ Updating this implies that you should update hie-buffer-idents-hash, but note th
 (defstruct hiedef
   name is-instance parent file line column signature help)
 
-; in the normal version, all are lists
-; in the cached version, defs is a hash table from name to hiedef
-;  imports is a map from hieimport to internal defs, exports is a set
 (defstruct hiemod
   name defs imports exports)
 
@@ -122,19 +90,21 @@ Updating this implies that you should update hie-buffer-idents-hash, but note th
 		 (hie-global-defshash))
     (haskell-ident-at-point)))
 
+(defvar hie-read-ident-history nil)
 (defun hie-read-ident (prompt &optional filter)
   (let ((name (completing-read prompt
 				(hie-global-defshash)
 				filter 
-				nil
-				(hie-initial-text))))
+				t
+				(hie-initial-text)
+				'hie-read-ident-history)))
     (gethash name (hie-global-defshash))))
 
 (defun hie-jump (def)
   (save-match-data
     (if (string-match "^@\\(.+\\)" (hiedef-file def))
 	(set-buffer (match-string 1 (hiedef-file def)))
-      (find-file (format (hiedef-file def) hie-sources-dir)))) 
+      (find-file (hiedef-file def)))) 
     (goto-char (point-min))
     (forward-line (1- (hiedef-line def)))
     (forward-char (1- (hiedef-column def))))
@@ -160,12 +130,26 @@ Updating this implies that you should update hie-buffer-idents-hash, but note th
 
 ;
 
-
 (defun hie-load-file (file)
   "Create completion table, etc for given module."
   (setq *hie-load* nil)
   (load file t t)
   *hie-load*)
+
+(defun hie-write-file (filename mod)
+  (with-temp-file filename
+    (insert (format "(setq *hie-load* %s)" (prin1-to-string mod)))))
+
+(defun hie-write-module (mod)
+  (when (not (member (hiemod-name mod) (list nil "Main")))
+    (hie-write-file (concat hie-modules-dir (hiemod-name mod)) mod)
+    ; Delete the cache stuff
+    (condition-case nil
+	(delete-file (concat hie-modules-cache-dir (hiemod-name mod)))
+      ('error nil))
+    (condition-case nil
+	(delete-file (concat hie-modules-cache-dir (hiemod-name mod) ".elc"))
+      ('error nil))))
 
 (defun hie-dump-defs (name defs)
   
@@ -176,7 +160,7 @@ Updating this implies that you should update hie-buffer-idents-hash, but note th
 				     collect (prin1-to-string def)) " "))))
   (byte-compile-file (concat hie-modules-cache-dir name)))
 
-(defun hie-import-defs-nonlocal (import)
+(defun hie-import-defs (import)
   ; Try globals
   (let ((defs (gethash import hie-import-defs-hash 'missing))
 	(name (hieimport-name import)))
@@ -198,31 +182,9 @@ Updating this implies that you should update hie-buffer-idents-hash, but note th
 		    (puthash (make-hieimport :name name) defs hie-import-defs-hash)))
 	      (puthash (make-hieimport :name name) nil hie-import-defs-hash))))))
      ((eq defs 'missing) ; if this isn't the raw version, import the raw version and fix it
-      (let ((mod (hie-import-defs-nonlocal (make-hieimport :name name)))) 
+      (let ((mod (hie-import-defs (make-hieimport :name name)))) 
 	(puthash import (if mod (hie-fix-raw-import-defs mod import) nil) hie-import-defs-hash)))
      (t defs))))
-
-(defun hie-import-defs-local (import)
-  ; Try globals
-  (let ((d (gethash (hieimport-name import) hie-all-buffers-import-defs-hash)))
-    (when d
-      (destructuring-bind (exports idents hash) d 
-	(let ((defs (gethash import hash 'missing)))
-	  (cond 
-	   ((and (eq defs 'missing) (not (hieimport-alias import))) ; if we dont have the raw version, make it 
-	    (puthash (make-hieimport :name (hieimport-name import))
-		     (hie-resolve-exports-defs exports (loop for v being the hash-values in idents collect v))
-		     hash))
-	   ((eq defs 'missing) ; if this isn't the raw version, import the raw version and fix it
-	    (puthash import 
-		     (hie-fix-raw-import-defs
-		      (hie-import-defs-local (make-hieimport :name (hieimport-name import)))
-		      import)
-		     hash))
-	   (t defs)))))))
-
-(defun hie-import-defs (import)
-  (or (hie-import-defs-local import) (hie-import-defs-nonlocal import)))
 
 (defun hie-fix-raw-import-defs (base-defs import)
   (let* ((defs (if (hieimport-is-hidden import)
@@ -269,9 +231,7 @@ Updating this implies that you should update hie-buffer-idents-hash, but note th
       (loop for def in defs
 	    if (eq they-select (or (equal (hiedef-name def) name)
 				   (equal (hiedef-parent def) name)))
-	    collect def)
-
-      )
+	    collect def))
      ((eq tag 'mod)
       (loop for def in defs
 	    if (eq they-select (hie-has-prefix
@@ -287,11 +247,6 @@ Updating this implies that you should update hie-buffer-idents-hash, but note th
 		  (setf (hiedef-name def)
 			(concat new-scope "." (hiedef-name def)))
 		  def)))
-
-;; (defun hie-global-import-module (name)
-;;   (let ((mod (hie-load-module name)))
-;;     (hie-alias-defs name (hie-external-defs mod))))
-  
 
 ; I'll make this "multithreaded" once I get lexically scoped variables... not everyone uses Emacs 24 I guess. :(
 (defun hie-run ()
@@ -312,50 +267,44 @@ Updating this implies that you should update hie-buffer-idents-hash, but note th
 ;;     (set-process-filter proc 'hie-proc-filter)
 ;;     (set-process-sentinel proc 'hie-proc-sentinel)
     
- 
 ;;     (hie-load-file file2)))
 
-(defun hie-try-idle-update ()
-  "Try to update the current buffer when we're idle."
-  (when (and hie-mode hie-buffer-check) 
-    (hie-setup-buffer)))
-
-(defun hie-try-save-update ()
-  "Try to update the current buffer when we're idle."
-  (when (and hie-mode) 
-    (hie-setup-buffer)))
 
 ;
 
 (defun hie-populate-defshash (defs defshash)
   (loop for def in defs do (puthash (hiedef-name def) def defshash)))
 
-(defun hie-buffer-very-first-setup ()
-  (setq hie-buffer-idents-hash (hie-new-hash))
-  (setq hie-buffer-imports-hash (hie-new-hash)))
-
 (defun hie-setup-buffer ()
   "Prepare the buffer for hie."
   (interactive)
-  
   (setq hie-buffer-check nil)
   (let* ((mod (hie-run))
 	 (sx (sxhash mod)))
     (when (and mod (not (eq hie-buffer-module-sxhash sx)))
       (setq hie-buffer-module-sxhash sx)
+
       ;; local business
       (setq hie-buffer-idents-hash (hie-new-hash))
       (loop for import in (hiemod-imports mod)
 	    do (hie-populate-defshash (hie-import-defs import) hie-buffer-idents-hash))
       (hie-populate-defshash (hiemod-defs mod) hie-buffer-idents-hash)
+
+      (setq hie-buffer-imports (loop for import in (hiemod-imports mod) collect (hieimport-name import)))
+      
       ;; global business
-      (when hie-buffer-module-name
-	(remhash hie-buffer-module-name hie-all-buffers-import-defs-hash))
-      (setq hie-buffer-module-name (hiemod-name mod))    
-      (when hie-buffer-module-name
-	(puthash hie-buffer-module-name
-		 (list (hiemod-exports mod) hie-buffer-idents-hash (hie-new-hash))
-		 hie-all-buffers-import-defs-hash)))))
+      (hie-write-module mod)
+
+      (loop for import being the hash-keys in hie-import-defs-hash
+	    do (when (equal (hieimport-name import) (hiemod-name mod))
+		 (remhash import hie-import-defs-hash)))
+
+      (loop for buffer in (buffer-list)
+	    unless (equal buffer (current-buffer)) do
+	    (with-current-buffer buffer
+	      (when (and hie-mode (member (hiemod-name mod) hie-buffer-imports))
+		(setq hie-buffer-check t)
+		(setq hie-buffer-module-sxhash 0)))))))
 
 ;; Autocomplete stuff
 
@@ -385,6 +334,10 @@ Updating this implies that you should update hie-buffer-idents-hash, but note th
     (prefix . hie-source-prefix)
     (document . hie-ac-document)))
 
+(defvar ac-source-hie-no-quick-help
+  '((candidates . hie-ac-candidates)
+    (prefix . hie-source-prefix)))
+
 (defun hie-ac-module-candidates ()
   (directory-files hie-modules-dir nil "^[^.]" t))
 
@@ -395,6 +348,16 @@ Updating this implies that you should update hie-buffer-idents-hash, but note th
 
 ;
 
+(defun hie-try-idle-update ()
+  "Try to update the current buffer when we're idle."
+  (when (and hie-mode hie-buffer-check) 
+    (hie-setup-buffer)))
+
+(defun hie-try-save-update ()
+  "Try to update the current buffer when we're idle."
+  (when (and hie-mode) 
+    (hie-setup-buffer)))
+
 (defun hie-allow-update (b e l)
   (setq hie-buffer-check t))
 
@@ -402,7 +365,6 @@ Updating this implies that you should update hie-buffer-idents-hash, but note th
 
 (when hie-idle-timer
   (cancel-timer hie-idle-timer))
-
 (setq hie-idle-timer (run-with-idle-timer hie-update-interval t 'hie-try-idle-update))
 
 (add-hook 'after-save-hook 'hie-try-save-update)

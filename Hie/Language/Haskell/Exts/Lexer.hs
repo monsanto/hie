@@ -1,7 +1,7 @@
 {-# OPTIONS_HADDOCK hide #-}
 -----------------------------------------------------------------------------
 -- |
--- Module      :  Language.Haskell.Exts.Annotated.Lexer
+-- Module      :  Hie.Language.Haskell.Exts.Annotated.Lexer
 -- Copyright   :  (c) The GHC Team, 1997-2000
 --                (c) Niklas Broberg, 2004-2009
 -- License     :  BSD-style (see the file LICENSE.txt)
@@ -18,13 +18,13 @@
 -- ToDo: FloatTok should have three parts (integer part, fraction, exponent) (?)
 -- ToDo: Use a lexical analyser generator (lx?)
 
-module Language.Haskell.Exts.Lexer (Token(..), showToken, lexer) where
+module Hie.Language.Haskell.Exts.Lexer (Token(..), showToken, lexer) where
 
-import Language.Haskell.Exts.ParseMonad
-import Language.Haskell.Exts.SrcLoc
-import Language.Haskell.Exts.Comments
-import Language.Haskell.Exts.Extension
-import Language.Haskell.Exts.ExtScheme
+import Hie.Language.Haskell.Exts.ParseMonad
+import Hie.Language.Haskell.Exts.SrcLoc
+import Hie.Language.Haskell.Exts.Comments
+import Hie.Language.Haskell.Exts.Extension
+import Hie.Language.Haskell.Exts.ExtScheme
 
 import Data.Char
 import Data.Ratio

@@ -17,9 +17,8 @@ def hie(f, inp):
     data = k.communicate(inp)
     return data
 
-directory = sys.argv[1]
-sources_directory = sys.argv[2]
-prefixes = sys.argv[3:] or ["Algebra", "Codec", "Control", "Data", "Database", "Debug", "Foreign", "GHC", "Graphics", "Language", "Numeric", "Network", "Prelude", "Sound", "System", "Test", "Text", "Training"]
+directory = sys.argv[1] 
+prefixes = sys.argv[2:] or ["Algebra", "Codec", "Control", "Data", "Database", "Debug", "Foreign", "GHC", "Graphics", "Language", "Numeric", "Network", "Prelude", "Sound", "System", "Test", "Text", "Training"]
 
 def find_files(directory, pattern):
     for root, dirs, files in os.walk(directory):
@@ -33,7 +32,7 @@ files = list(find_files(".", "*.hs")) + list(find_files(".", "*.lhs"))
 errs = []
 
 for f in files:
-    path = os.path.abspath(f).replace(sources_directory, "%s/")
+    path = os.path.abspath(f)
 
     writeit = False
     parts = []

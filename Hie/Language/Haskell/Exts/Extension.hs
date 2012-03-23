@@ -1,6 +1,6 @@
 -----------------------------------------------------------------------------
 -- |
--- Module      :  Language.Haskell.Exts.Extension
+-- Module      :  Hie.Language.Haskell.Exts.Extension
 -- Copyright   :  (c) Niklas Broberg 2009
 -- License     :  BSD-style (see the file LICENSE.txt)
 --
@@ -14,7 +14,7 @@
 -- 'XmlSyntax' and 'RegularPatterns' extensions.
 --
 -----------------------------------------------------------------------------
-module Language.Haskell.Exts.Extension (
+module Hie.Language.Haskell.Exts.Extension (
     -- * Extensions
     Extension(..), classifyExtension, impliesExts,
 

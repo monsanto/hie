@@ -1,6 +1,6 @@
 -----------------------------------------------------------------------------
 -- |
--- Module      :  Language.Haskell.Exts.Pretty
+-- Module      :  Hie.Language.Haskell.Exts.Pretty
 -- Copyright   :  (c) Niklas Broberg 2004-2009,
 --                (c) The GHC Team, Noel Winstanley 1997-2000
 -- License     :  BSD-style (see the file LICENSE.txt)
@@ -13,7 +13,7 @@
 --
 -----------------------------------------------------------------------------
 
-module Language.Haskell.Exts.Pretty (
+module Hie.Language.Haskell.Exts.Pretty (
                 -- * Pretty printing
                 Pretty,
                 prettyPrintStyleMode, prettyPrintWithMode, prettyPrint,
@@ -22,12 +22,12 @@ module Language.Haskell.Exts.Pretty (
                 -- * Haskell formatting modes
                 PPHsMode(..), Indent, PPLayout(..), defaultMode) where
 
-import Language.Haskell.Exts.Syntax
-import qualified Language.Haskell.Exts.Annotated.Syntax as A
-import Language.Haskell.Exts.Annotated.Simplify
-import qualified Language.Haskell.Exts.ParseSyntax as P
+import Hie.Language.Haskell.Exts.Syntax
+import qualified Hie.Language.Haskell.Exts.Annotated.Syntax as A
+import Hie.Language.Haskell.Exts.Annotated.Simplify
+import qualified Hie.Language.Haskell.Exts.ParseSyntax as P
 
-import Language.Haskell.Exts.SrcLoc
+import Hie.Language.Haskell.Exts.SrcLoc
 
 import qualified Text.PrettyPrint as P
 import Data.List (intersperse)
@@ -129,7 +129,7 @@ getPPEnv = DocM id
 type Doc = DocM PPHsMode P.Doc
 
 -- | Things that can be pretty-printed, including all the syntactic objects
--- in "Language.Haskell.Exts.Syntax" and "Language.Haskell.Exts.Annotated.Syntax".
+-- in "Hie.Language.Haskell.Exts.Syntax" and "Hie.Language.Haskell.Exts.Annotated.Syntax".
 class Pretty a where
         -- | Pretty-print something in isolation.
         pretty :: a -> Doc

@@ -1,6 +1,6 @@
 -----------------------------------------------------------------------------
 -- |
--- Module      :  Language.Haskell.Exts.Annotated.Fixity
+-- Module      :  Hie.Language.Haskell.Exts.Annotated.Fixity
 -- Copyright   :  (c) Niklas Broberg 2009
 -- License     :  BSD-style (see the file LICENSE.txt)
 --
@@ -12,7 +12,7 @@
 -- be parsed properly.
 --
 -----------------------------------------------------------------------------
-module Language.Haskell.Exts.Annotated.Fixity
+module Hie.Language.Haskell.Exts.Annotated.Fixity
     (
     -- * Fixity representation
       Fixity(..)
@@ -33,12 +33,12 @@ module Language.Haskell.Exts.Annotated.Fixity
     , AppFixity(..)
     ) where
 
-import Language.Haskell.Exts.Annotated.Syntax
-import Language.Haskell.Exts.SrcLoc
+import Hie.Language.Haskell.Exts.Annotated.Syntax
+import Hie.Language.Haskell.Exts.SrcLoc
 
-import Language.Haskell.Exts.Fixity ( Fixity(..), infix_, infixl_, infixr_, preludeFixities, baseFixities )
-import qualified Language.Haskell.Exts.Syntax as S ( Assoc(..), QOp(..), Op(..), QName(..), Name(..), SpecialCon(..), ModuleName )
-import Language.Haskell.Exts.Annotated.Simplify ( sQOp, sOp, sAssoc, sQName, sModuleHead, sName )
+import Hie.Language.Haskell.Exts.Fixity ( Fixity(..), infix_, infixl_, infixr_, preludeFixities, baseFixities )
+import qualified Hie.Language.Haskell.Exts.Syntax as S ( Assoc(..), QOp(..), Op(..), QName(..), Name(..), SpecialCon(..), ModuleName )
+import Hie.Language.Haskell.Exts.Annotated.Simplify ( sQOp, sOp, sAssoc, sQName, sModuleHead, sName )
 
 import Data.Char (isUpper)
 import Control.Monad (when, (<=<), liftM, liftM2, liftM3, liftM4)

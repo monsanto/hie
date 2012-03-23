@@ -1,7 +1,7 @@
 {-# LANGUAGE CPP, DeriveDataTypeable #-}
 -----------------------------------------------------------------------------
 -- |
--- Module      :  Language.Haskell.Exts.Syntax
+-- Module      :  Hie.Language.Haskell.Exts.Syntax
 -- Copyright   :  (c) Niklas Broberg 2004-2009,
 --                (c) The GHC Team, 1997-2000
 -- License     :  BSD-style (see the file LICENSE.txt)
@@ -37,7 +37,7 @@
 --
 -----------------------------------------------------------------------------
 
-module Language.Haskell.Exts.Syntax (
+module Hie.Language.Haskell.Exts.Syntax (
     -- * Modules
     Module(..), WarningText(..), ExportSpec(..),
     ImportDecl(..), ImportSpec(..), Assoc(..),
@@ -104,9 +104,9 @@ import Data.Generics (Data(..),Typeable(..))
 #endif
 #endif
 
-import Language.Haskell.Exts.SrcLoc (SrcLoc(..))
+import Hie.Language.Haskell.Exts.SrcLoc (SrcLoc(..))
 
-import Language.Haskell.Exts.Annotated.Syntax (Boxed(..), Tool(..))
+import Hie.Language.Haskell.Exts.Annotated.Syntax (Boxed(..), Tool(..))
 
 
 -- | The name of a Haskell module.

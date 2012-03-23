@@ -1,7 +1,7 @@
 {-# LANGUAGE CPP, DeriveDataTypeable #-}
 -----------------------------------------------------------------------------
 -- |
--- Module      :  Language.Haskell.Exts.Annotated.Syntax
+-- Module      :  Hie.Language.Haskell.Exts.Annotated.Syntax
 -- Copyright   :  (c) Niklas Broberg 2004-2009,
 --                (c) The GHC Team, 1997-2000
 -- License     :  BSD-style (see the file LICENSE.txt)
@@ -41,7 +41,7 @@
 --
 -----------------------------------------------------------------------------
 
-module Language.Haskell.Exts.Annotated.Syntax (
+module Hie.Language.Haskell.Exts.Annotated.Syntax (
     -- * Modules
     Module(..), ModuleHead(..), WarningText(..), ExportSpecList(..), ExportSpec(..),
     ImportDecl(..), ImportSpecList(..), ImportSpec(..), Assoc(..),

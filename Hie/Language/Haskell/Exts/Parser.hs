@@ -1,4 +1,4 @@
-module Language.Haskell.Exts.Parser
+module Hie.Language.Haskell.Exts.Parser
             (
                 -- * General parsing
                 Parseable(..),
@@ -21,15 +21,15 @@ module Language.Haskell.Exts.Parser
             ) where
 
 
-import Language.Haskell.Exts.InternalParser ( ParseMode(..), defaultParseMode, ParseResult(..), fromParseResult )
-import qualified Language.Haskell.Exts.InternalParser as P
+import Hie.Language.Haskell.Exts.InternalParser ( ParseMode(..), defaultParseMode, ParseResult(..), fromParseResult )
+import qualified Hie.Language.Haskell.Exts.InternalParser as P
 
-import Language.Haskell.Exts.Annotated.Syntax
-import qualified Language.Haskell.Exts.Syntax as S
-import Language.Haskell.Exts.Annotated.Simplify
+import Hie.Language.Haskell.Exts.Annotated.Syntax
+import qualified Hie.Language.Haskell.Exts.Syntax as S
+import Hie.Language.Haskell.Exts.Annotated.Simplify
 
-import Language.Haskell.Exts.SrcLoc
-import Language.Haskell.Exts.Comments
+import Hie.Language.Haskell.Exts.SrcLoc
+import Hie.Language.Haskell.Exts.Comments
 
 getTopPragmas :: String -> ParseResult [S.ModulePragma]
 getTopPragmas = fmap (map sModulePragma) . P.getTopPragmas

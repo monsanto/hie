@@ -47,12 +47,12 @@ Cabal-version:       >=1.2
 
 Executable hie
   -- .hs or .lhs file containing the Main module.
-  Main-is: hie.hs            
+  Main-is: hie.hs
   
   -- Packages needed in order to build this package.
   Build-depends: base, directory, containers, fclabels, cpphs, regex-compat, pretty, syb, array
 
-  Other-modules: Language.Haskell.Exts.InternalParser
+  Other-modules: Hie.Language.Haskell.Exts.InternalParser
   
   -- Modules not exported by this package.
   -- Other-modules:       

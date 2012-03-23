@@ -1,8 +1,8 @@
 {-# OPTIONS_HADDOCK hide #-}
-module Language.Haskell.Exts.ParseSyntax where
+module Hie.Language.Haskell.Exts.ParseSyntax where
 
-import Language.Haskell.Exts.Annotated.Syntax hiding ( Type(..), Asst(..), Exp(..), FieldUpdate(..), XAttr(..), Context(..) )
-import qualified Language.Haskell.Exts.Annotated.Syntax as S ( Type(..), Asst(..), Exp(..), FieldUpdate(..), XAttr(..), Context(..) )
+import Hie.Language.Haskell.Exts.Annotated.Syntax hiding ( Type(..), Asst(..), Exp(..), FieldUpdate(..), XAttr(..), Context(..) )
+import qualified Hie.Language.Haskell.Exts.Annotated.Syntax as S ( Type(..), Asst(..), Exp(..), FieldUpdate(..), XAttr(..), Context(..) )
 
 ---------------------------------------
 -- Expressions as we parse them (and patters, and regular patterns)
